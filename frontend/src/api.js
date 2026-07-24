@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_API_URL || '/api';
+const API = import.meta.env.VITE_API_URL || 'https://empty-bags-software.onrender.com/api';
 
 function getCookie(name) {
   let cookieValue = null;
