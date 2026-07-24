@@ -5,7 +5,6 @@ try:
 except ImportError:
     dj_database_url = None
 from pathlib import Path
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -67,7 +66,7 @@ if 'test' in sys.argv:
             'NAME': BASE_DIR / 'empty_bags.sqlite3',
         }
     }
-elif os.environ.get('DATABASE_URL'):
+elif os.environ.get('DATABASE_URL') and dj_database_url:
     DATABASES = {
         'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'), conn_max_age=600)
     }
