@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mother India Mill - Stocks & Ledger Software</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="navbar">
+    <div class="brand-title">
+      <i class="fa-solid fa-wheat-awn brand-icon"></i> MOTHER INDIA MILL
+      <span class="brand-badge">PRO SAAS</span>
+    </div>
+
+    <!-- Nav Menu Tabs -->
+    <nav class="nav-menu">
+      <button class="nav-btn active" onclick="switchTab('dashboard')"><i class="fa-solid fa-chart-pie"></i> Dashboard</button>
+      <button class="nav-btn" onclick="switchTab('stocks')"><i class="fa-solid fa-layer-group"></i> Stocks & Kunchinittu</button>
+      <button class="nav-btn" onclick="switchTab('emptybags')"><i class="fa-solid fa-book-open"></i> Empty Bags Ledger</button>
+
+      <!-- Master Creation Dropdown Menu -->
+      <div class="dropdown-wrapper">
+        <button class="nav-btn" style="background: #f1f5f9; border: 1px solid var(--border);">
+          <i class="fa-solid fa-sliders"></i> Master Creation <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem; margin-left: 0.2rem;"></i>
+        </button>
+        <div class="dropdown-menu">
+          <a class="dropdown-item" onclick="openMasterModal('user')"><i class="fa-solid fa-user-gear"></i> User Management</a>
+          <a class="dropdown-item" onclick="openMasterModal('party')"><i class="fa-solid fa-address-book"></i> Party Master</a>
+          <a class="dropdown-item" onclick="openMasterModal('variety')"><i class="fa-solid fa-wheat-awn"></i> Variety Master</a>
+          <a class="dropdown-item" onclick="openMasterModal('place')"><i class="fa-solid fa-warehouse"></i> Place Master</a>
+        </div>
+      </div>
+    </nav>
+
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <!-- Alert Bell Icon -->
+      <button class="alert-bell-btn" onclick="toggleAlertsModal()" title="System Alerts">
+        <i class="fa-solid fa-bell"></i>
+        <span id="alertBadgeCount" class="alert-count-pill" style="display: none;">0</span>
+      </button>
+
+      <span id="activeUserLabel" style="font-weight: 600; font-size: 0.9rem;">Guest</span>
+      <span id="activeRoleBadge" class="role-pill role-staff">STAFF</span>
+      <button class="btn-btn btn-secondary" onclick="openLoginModal()" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+    </div>
+  </header>
+
+  <main class="main-container">
+
+    <!-- TAB 1: DASHBOARD -->
+    <section id="tab-dashboard" class="tab-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #eff6ff; color: var(--primary);"><i class="fa-solid fa-boxes-stacked"></i></div>
+          <div>
+            <div class="stat-val" id="statTotalStockBags">0</div>
+            <div class="stat-lbl">Total Bags in Stock</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #ecfdf5; color: var(--accent-emerald);"><i class="fa-solid fa-arrow-down"></i></div>
+          <div>
+            <div class="stat-val" id="statTodayInwardBags">0</div>
+            <div class="stat-lbl">Total Inward Bags</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #fef2f2; color: var(--accent-rose);"><i class="fa-solid fa-arrow-up"></i></div>
+          <div>
+            <div class="stat-val" id="statTodayOutwardBags">0</div>
+            <div class="stat-lbl">Total Outward Bags</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background: #fffbeb; color: var(--accent-amber);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div>
+            <div class="stat-val" id="statLowStockCount">0</div>
+            <div class="stat-lbl">Low Stock Alerts (<2,000)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="fa-solid fa-chart-line"></i> Variety Stock Position Overview</div>
+          <button class="btn-btn btn-secondary" onclick="loadDashboardStats()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+        </div>
+        <div class="table-container">
+          <table class="excel-table">
+            <thead>
+              <tr>
+                <th>Photo</th>
+                <th>Variety Name</th>
+                <th>Standard Kg / Bag</th>
+                <th>Available Stock (Bags)</th>
+                <th>Total Weight (Kgs)</th>
+                <th>Alert Status</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardStockTbody">
+              <tr><td colspan="6" style="text-align: center;">Loading stock position...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: STOCKS & KUNCHINITTU (COMBINED STOCKS & INWARD/OUTWARD ACTION BUTTONS) -->
+    <section id="tab-stocks" class="tab-content" style="display: none;">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="fa-solid fa-layer-group"></i> Stocks & Kunchinittu Ledger</div>
+          
+          <!-- Combined Inward & Outward Action Buttons -->
+          <div style="display: flex; gap: 0.75rem;">
+            <button class="btn-btn btn-emerald" onclick="openModal('inwardModal')"><i class="fa-solid fa-plus-circle"></i> + Inward Entry</button>
+            <button class="btn-btn btn-primary" onclick="openModal('outwardModal')"><i class="fa-solid fa-minus-circle"></i> - Outward Entry</button>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem;">
+          <input type="text" id="stocksSearchInput" class="form-control" style="max-width: 300px;" placeholder="Search variety or stock..." onkeyup="filterTable('stocksTabTbody', this.value)">
+          <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Full Screen View</span>
+        </div>
+
+        <div class="table-container">
+          <table class="excel-table">
+            <thead>
+              <tr>
+                <th>SL No</th>
+                <th>Photo</th>
+                <th>Variety Name</th>
+                <th>Standard Kg / Bag</th>
+                <th>Total Inward Bags</th>
+                <th>Total Outward Bags</th>
+                <th>Current Stock (Bags)</th>
+                <th>Total Weight (Kgs)</th>
+                <th>Stock Status</th>
+              </tr>
+            </thead>
+            <tbody id="stocksTabTbody">
+              <tr><td colspan="9" style="text-align: center;">Loading stocks...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Inward & Outward Historical Registers -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div class="card-panel">
+          <div class="panel-header">
+            <div class="panel-title" style="color: var(--accent-emerald);"><i class="fa-solid fa-boxes-packing"></i> Inward Register (SL No 1 First)</div>
+          </div>
+          <div class="table-container">
+            <table class="excel-table">
+              <thead>
+                <tr>
+                  <th>SL No</th>
+                  <th>Invoice No</th>
+                  <th>Date</th>
+                  <th>Party</th>
+                  <th>Variety</th>
+                  <th>Bags</th>
+                  <th>Total Value</th>
+                  <th>PDF</th>
+                </tr>
+              </thead>
+              <tbody id="inwardRegisterTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <div class="panel-header">
+            <div class="panel-title" style="color: var(--primary);"><i class="fa-solid fa-truck-ramp-box"></i> Outward Register (SL No 1 First)</div>
+          </div>
+          <div class="table-container">
+            <table class="excel-table">
+              <thead>
+                <tr>
+                  <th>SL No</th>
+                  <th>Invoice No</th>
+                  <th>Date</th>
+                  <th>Party</th>
+                  <th>Variety</th>
+                  <th>Bags</th>
+                  <th>Total Value</th>
+                  <th>PDF</th>
+                </tr>
+              </thead>
+              <tbody id="outwardRegisterTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: EMPTY BAGS LEDGER -->
+    <section id="tab-emptybags" class="tab-content" style="display: none;">
+      <div class="card-panel">
+        <div class="panel-header">
+          <div class="panel-title"><i class="fa-solid fa-book-open"></i> Empty Bags Stock Movement Ledger</div>
+          <button class="btn-btn btn-secondary" onclick="loadEmptyBagsLedger()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Ledger</button>
+        </div>
+        <div class="table-container">
+          <table class="excel-table">
+            <thead>
+              <tr>
+                <th>SL No</th>
+                <th>Variety Name</th>
+                <th>Date</th>
+                <th>Opening Stock (Bags)</th>
+                <th>Opening Kgs</th>
+                <th>Inward (Bags)</th>
+                <th>Inward Kgs</th>
+                <th>Outward (Bags)</th>
+                <th>Outward Kgs</th>
+                <th>Closing Stock (Bags)</th>
+                <th>Closing Kgs</th>
+              </tr>
+            </thead>
+            <tbody id="emptyBagsTbody">
+              <tr><td colspan="11" style="text-align: center;">Loading empty bags stock movement...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: MASTER CREATION -->
+    <section id="tab-masters" class="tab-content" style="display: none;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        
+        <!-- User Master -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <div class="panel-title"><i class="fa-solid fa-users"></i> User Management</div>
+            <button class="btn-btn btn-primary" onclick="openMasterModal('user')"><i class="fa-solid fa-plus"></i> Add User</button>
+          </div>
+          <div class="table-container">
+            <table class="excel-table">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Place Master -->
+        <div class="card-panel">
+          <div class="panel-header">
+            <div class="panel-title"><i class="fa-solid fa-warehouse"></i> Place Master</div>
+            <button class="btn-btn btn-primary" onclick="openMasterModal('place')"><i class="fa-solid fa-plus"></i> Add Place</button>
+          </div>
+          <div class="table-container">
+            <table class="excel-table">
+              <thead>
+                <tr>
+                  <th>Place Name</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="placesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Party Master -->
+        <div class="card-panel" style="grid-column: span 2;">
+          <div class="panel-header">
+            <div class="panel-title"><i class="fa-solid fa-address-book"></i> Party Master</div>
+            <button class="btn-btn btn-primary" onclick="openMasterModal('party')"><i class="fa-solid fa-plus"></i> Add Party</button>
+          </div>
+          <div class="table-container">
+            <table class="excel-table">
+              <thead>
+                <tr>
+                  <th>Party Name</th>
+                  <th>Shortcut Name</th>
+                  <th>Phone Number</th>
+                  <th>Place</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="partiesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Variety Master -->
+        <div class="card-panel" style="grid-column: span 2;">
+          <div class="panel-header">
+            <div class="panel-title"><i class="fa-solid fa-wheat-awn"></i> Variety Master</div>
+            <button class="btn-btn btn-primary" onclick="openMasterModal('variety')"><i class="fa-solid fa-plus"></i> Add Variety</button>
+          </div>
+          <div class="table-container">
+            <table class="excel-table">
+              <thead>
+                <tr>
+                  <th>Photo</th>
+                  <th>Variety Name</th>
+                  <th>Standard Kg / Bag</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="varietiesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CENTERED MODAL: INWARD ENTRY -->
+  <div id="inwardModal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title" style="color: var(--accent-emerald);"><i class="fa-solid fa-plus-circle"></i> Create Inward Entry</div>
+        <button class="close-modal" onclick="closeModal('inwardModal')">&times;</button>
+      </div>
+      <form id="inwardForm" onsubmit="submitInwardForm(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="inwardDate" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Purchase From (Party)</label>
+            <select id="inwardParty" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label>Variety & Kgs</label>
+            <select id="inwardVariety" class="form-control" onchange="updateInwardCalcs()" required></select>
+          </div>
+          <div class="form-group">
+            <label>No. of Bags</label>
+            <input type="number" id="inwardBags" class="form-control" min="1" oninput="updateInwardCalcs()" required>
+          </div>
+          <div class="form-group">
+            <label>Rate Per Bag (Rs.)</label>
+            <input type="number" step="0.01" id="inwardRate" class="form-control" min="0" oninput="updateInwardCalcs()" required>
+          </div>
+          <div class="form-group">
+            <label>Total Value</label>
+            <input type="text" id="inwardTotalVal" class="form-control" readonly placeholder="Rs. 0.00" style="font-weight: 700; color: var(--primary);">
+          </div>
+        </div>
+
+        <div class="toggle-wrapper">
+          <label class="switch">
+            <input type="checkbox" id="inwardLfToggle" onchange="updateInwardCalcs()">
+            <span class="slider"></span>
+          </label>
+          <span style="font-size: 0.88rem; font-weight: 600;">LF Toggle (Yes/No)</span>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+          <button type="button" class="btn-btn btn-secondary" onclick="closeModal('inwardModal')">Cancel</button>
+          <button type="submit" class="btn-btn btn-emerald"><i class="fa-solid fa-floppy-disk"></i> Save Inward</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CENTERED MODAL: OUTWARD ENTRY -->
+  <div id="outwardModal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title" style="color: var(--primary);"><i class="fa-solid fa-minus-circle"></i> Create Outward Entry</div>
+        <button class="close-modal" onclick="closeModal('outwardModal')">&times;</button>
+      </div>
+      <form id="outwardForm" onsubmit="submitOutwardForm(event)">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="outwardDate" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Customer / Party</label>
+            <select id="outwardParty" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label>Variety</label>
+            <select id="outwardVariety" class="form-control" onchange="updateOutwardCalcs()" required></select>
+          </div>
+          <div class="form-group">
+            <label>Bags Count</label>
+            <input type="number" id="outwardBags" class="form-control" min="1" oninput="updateOutwardCalcs()" required>
+          </div>
+          <div class="form-group">
+            <label>Rate Per Bag (Rs.)</label>
+            <input type="number" step="0.01" id="outwardRate" class="form-control" min="0" oninput="updateOutwardCalcs()" required>
+          </div>
+          <div class="form-group">
+            <label>Total Value</label>
+            <input type="text" id="outwardTotalVal" class="form-control" readonly placeholder="Rs. 0.00" style="font-weight: 700; color: var(--primary);">
+          </div>
+        </div>
+
+        <div class="toggle-wrapper">
+          <label class="switch">
+            <input type="checkbox" id="outwardLfToggle" onchange="updateOutwardCalcs()">
+            <span class="slider"></span>
+          </label>
+          <span style="font-size: 0.88rem; font-weight: 600;">LF Toggle (Yes/No)</span>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+          <button type="button" class="btn-btn btn-secondary" onclick="closeModal('outwardModal')">Cancel</button>
+          <button type="submit" class="btn-btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Submit Outward</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ALERTS POPUP MODAL -->
+  <div id="alertsModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-bell"></i> System Notifications & Alerts</div>
+        <button class="close-modal" onclick="closeModal('alertsModal')">&times;</button>
+      </div>
+      <div id="modalAlertsList" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 350px; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- MASTER MODALS -->
+  <div id="loginModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-lock"></i> User Login</div>
+        <button class="close-modal" onclick="closeModal('loginModal')">&times;</button>
+      </div>
+      <form onsubmit="performLogin(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Username</label>
+          <input type="text" id="loginUsername" class="form-control" required placeholder="owner or staff1">
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label>Password</label>
+          <input type="password" id="loginPassword" class="form-control" required placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn-btn btn-primary" style="width: 100%; justify-content: center;"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="userModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title">Create User</div>
+        <button class="close-modal" onclick="closeModal('userModal')">&times;</button>
+      </div>
+      <form onsubmit="saveUser(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Username</label>
+          <input type="text" id="newUsername" class="form-control" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Password</label>
+          <input type="password" id="newPassword" class="form-control" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label>Role</label>
+          <select id="newRole" class="form-control">
+            <option value="STAFF">Staff (Entry Only)</option>
+            <option value="OWNER">Owner (Full Authority)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-btn btn-primary" style="width: 100%;">Save User</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="placeModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title">Add Place</div>
+        <button class="close-modal" onclick="closeModal('placeModal')">&times;</button>
+      </div>
+      <form onsubmit="savePlace(event)">
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label>Place Name</label>
+          <input type="text" id="newPlaceName" class="form-control" required>
+        </div>
+        <button type="submit" class="btn-btn btn-primary" style="width: 100%;">Save Place</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="partyModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title">Add Party</div>
+        <button class="close-modal" onclick="closeModal('partyModal')">&times;</button>
+      </div>
+      <form onsubmit="saveParty(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Party Name</label>
+          <input type="text" id="newPartyName" class="form-control" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Shortcut Name</label>
+          <input type="text" id="newPartyShortcut" class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Phone Number (10 Digits)</label>
+          <input type="text" id="newPartyPhone" class="form-control" maxlength="10">
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label>Place</label>
+          <select id="newPartyPlace" class="form-control"></select>
+        </div>
+        <button type="submit" class="btn-btn btn-primary" style="width: 100%;">Save Party</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="varietyModal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title">Add Variety</div>
+        <button class="close-modal" onclick="closeModal('varietyModal')">&times;</button>
+      </div>
+      <form onsubmit="saveVariety(event)" enctype="multipart/form-data">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Variety Name</label>
+          <input type="text" id="newVarietyName" class="form-control" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label>Standard Kgs Per Bag</label>
+          <input type="number" step="0.01" id="newVarietyKgs" class="form-control" required placeholder="50.00">
+        </div>
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label>Photo</label>
+          <input type="file" id="newVarietyPhoto" class="form-control" accept="image/*">
+        </div>
+        <button type="submit" class="btn-btn btn-primary" style="width: 100%;">Save Variety</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
