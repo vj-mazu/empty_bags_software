@@ -58,7 +58,7 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
           )}
         </div>
 
-        {(!user || user.role === 'OWNER') && (
+        {user?.role === 'OWNER' && (
           <button className={`nav-tab ${activeTab === 'approvals' ? 'active' : ''}`} onClick={() => setActiveTab('approvals')}>
             <i className="fas fa-clipboard-check"></i> Approvals
           </button>
