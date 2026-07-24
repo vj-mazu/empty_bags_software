@@ -477,7 +477,10 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ApprovalRequestSerializer
 
     def get_queryset(self):
-        return ApprovalRequest.objects.all().select_related('requested_by')
+        try:
+            return ApprovalRequest.objects.all().order_by('-created_at')
+        except Exception:
+            return ApprovalRequest.objects.none()
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user and self.request.user.is_authenticated else None

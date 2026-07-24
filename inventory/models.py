@@ -187,7 +187,7 @@ class ApprovalRequest(models.Model):
     target_model = models.CharField(max_length=10, choices=MODEL_CHOICES)
     target_id = models.IntegerField()
     proposed_data = models.JSONField(blank=True, null=True)
-    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='approval_requests')
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='approval_requests')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(blank=True, null=True)
