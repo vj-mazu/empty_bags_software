@@ -1,4 +1,10 @@
 import os
+import sys
+try:
+    import dj_database_url
+except ImportError:
+    dj_database_url = None
+from pathlib import Path
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,6 +29,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -52,39 +59,43 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mother_india.wsgi.application'
 
-import sys
-
-# PostgreSQL Database Configuration for Mother India Mill
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'empty_bags',
-        'USER': 'postgres',
-        'PASSWORD': '12345',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
-
+# Database Configuration
 if 'test' in sys.argv:
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'empty_bags.sqlite3',
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'empty_bags.sqlite3',
+        }
+    }
+elif os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'), conn_max_age=600)
     }
 else:
-    # Verify local PostgreSQL socket connectivity on startup
+    # Local development: try PostgreSQL, fallback to SQLite
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(1)
     try:
         s.connect(('localhost', 5432))
         s.close()
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': 'empty_bags',
+                'USER': 'postgres',
+                'PASSWORD': '12345',
+                'HOST': 'localhost',
+                'PORT': '5432',
+            }
+        }
     except Exception:
-        # Fallback to SQLite empty_bags if PostgreSQL port 5432 is not currently listening
-        DATABASES['default'] = {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'empty_bags.sqlite3',
-            'OPTIONS': {'timeout': 20}
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'empty_bags.sqlite3',
+                'OPTIONS': {'timeout': 20}
+            }
         }
 
 
@@ -136,3 +147,4 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
 ]
 
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'

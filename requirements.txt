@@ -1,0 +1,8 @@
+django>=4.2
+djangorestframework
+django-cors-headers
+gunicorn
+whitenoise
+dj-database-url
+psycopg2-binary
+reportlab
