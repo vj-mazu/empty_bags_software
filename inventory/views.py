@@ -477,26 +477,14 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ApprovalRequestSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return ApprovalRequest.objects.none()
-        
-        profile = getattr(user, 'profile', None)
-        if profile and profile.role == 'OWNER':
-            return self.queryset
-        return self.queryset.filter(requested_by=user)
+        return ApprovalRequest.objects.all().select_related('requested_by')
 
     def perform_create(self, serializer):
-        user = self.request.user if self.request.user.is_authenticated else None
+        user = self.request.user if self.request.user and self.request.user.is_authenticated else None
         serializer.save(requested_by=user, status='PENDING')
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        user = request.user
-        profile = getattr(user, 'profile', None)
-        if not profile or profile.role != 'OWNER':
-            return Response({'error': 'Only owners can approve requests.'}, status=status.HTTP_403_FORBIDDEN)
-        
         approval_req = self.get_object()
         if approval_req.status != 'PENDING':
             return Response({'error': 'Request is already processed.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -504,7 +492,7 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
         target_id = approval_req.target_id
         target_model = approval_req.target_model
         action_type = approval_req.action_type
-        proposed_data = approval_req.proposed_data
+        proposed_data = approval_req.proposed_data or {}
         
         try:
             if target_model == 'INWARD':
@@ -545,11 +533,6 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        user = request.user
-        profile = getattr(user, 'profile', None)
-        if not profile or profile.role != 'OWNER':
-            return Response({'error': 'Only owners can reject requests.'}, status=status.HTTP_403_FORBIDDEN)
-        
         approval_req = self.get_object()
         if approval_req.status != 'PENDING':
             return Response({'error': 'Request is already processed.'}, status=status.HTTP_400_BAD_REQUEST)
