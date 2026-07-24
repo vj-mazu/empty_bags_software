@@ -230,7 +230,7 @@ const Stocks = ({ user, showToast }) => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
         
         {/* INWARD REGISTER */}
-        <div className="card" style={{ margin: 0 }}>
+        <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981' }}>
           <div className="card-hdr" style={{ padding: '0.5rem 0.75rem' }}>
             <div className="card-title" style={{ color: '#10b981', fontSize: '0.9rem' }}>
               <i className="fas fa-boxes-packing"></i> Inward Register
