@@ -147,7 +147,7 @@ export const getLedger = (params = {}) => {
 };
 
 export const downloadPdf = (type, id) => {
-  window.open(`/api/${type}/${id}/pdf/`, '_blank');
+  window.open(`${API}/${type}/${id}/pdf/`, '_blank');
 };
 
 export const getApprovals = () => api('/approvals/');
