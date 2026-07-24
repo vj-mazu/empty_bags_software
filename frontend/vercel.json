@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://emptybags-api.onrender.com/api/:path*"
+      "destination": "https://empty-bags-software.onrender.com/api/:path*"
     },
     {
       "source": "/media/:path*",
-      "destination": "https://emptybags-api.onrender.com/media/:path*"
+      "destination": "https://empty-bags-software.onrender.com/media/:path*"
     }
   ]
 }
