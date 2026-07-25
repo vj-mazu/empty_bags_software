@@ -28,7 +28,26 @@ const renderProposedChange = (item, fieldName, originalVal, isPending, parties, 
     return originalVal;
   }
   const proposed = isPending.proposed_data[fieldName];
-  if (proposed === undefined || proposed === null || String(proposed) === String(item[fieldName])) {
+  if (proposed === undefined || proposed === null) {
+    return originalVal;
+  }
+
+  // Smart value comparison to check if the field actually changed
+  let isDifferent = false;
+  if (fieldName === 'party' || fieldName === 'variety') {
+    const currentId = item[fieldName] ? String(item[fieldName].id || item[fieldName]) : '';
+    isDifferent = String(proposed) !== currentId;
+  } else if (fieldName === 'rate' || fieldName === 'total_value' || fieldName === 'lf_amount' || fieldName === 'bags') {
+    const currentNum = Number(item[fieldName]) || 0;
+    const proposedNum = Number(proposed) || 0;
+    isDifferent = Math.abs(currentNum - proposedNum) > 0.001;
+  } else if (fieldName === 'lf_toggle') {
+    isDifferent = Boolean(proposed) !== Boolean(item.lf_toggle);
+  } else {
+    isDifferent = String(proposed).trim() !== String(item[fieldName] || '').trim();
+  }
+
+  if (!isDifferent) {
     return originalVal;
   }
 
