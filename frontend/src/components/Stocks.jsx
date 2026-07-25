@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getVarieties, getParties, getInwards, getOutwards, downloadPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals } from '../api';
+import { getVarieties, getParties, getInwards, getOutwards, downloadPdf, downloadStocksPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals } from '../api';
 import InwardModal from './InwardModal';
 import OutwardModal from './OutwardModal';
 
@@ -145,30 +145,27 @@ const Stocks = ({ user, showToast }) => {
 
   const fetchData = async () => {
     try {
-      const vRes = await getVarieties();
-      setVarieties(vRes.results || vRes.data || vRes);
+      const [vRes, pRes, inRes, outRes, appRes] = await Promise.all([
+        getVarieties().catch(() => []),
+        getParties().catch(() => []),
+        getInwards({ all: 'true' }).catch(() => []),
+        getOutwards({ all: 'true' }).catch(() => []),
+        getApprovals().catch(() => [])
+      ]);
+
+      setVarieties(vRes.results || vRes.data || (Array.isArray(vRes) ? vRes : []));
+      setParties(pRes.results || pRes.data || (Array.isArray(pRes) ? pRes : []));
       
-      const pRes = await getParties();
-      setParties(pRes.results || pRes.data || pRes || []);
-      
-      const inRes = await getInwards({ all: 'true' });
-      const inRows = Array.isArray(inRes) ? inRes : (inRes.results || inRes.data || inRes || []);
-      
-      const outRes = await getOutwards({ all: 'true' });
-      const outRows = Array.isArray(outRes) ? outRes : (outRes.results || outRes.data || outRes || []);
-      
+      const inRows = Array.isArray(inRes) ? inRes : (inRes.results || inRes.data || []);
+      const outRows = Array.isArray(outRes) ? outRes : (outRes.results || outRes.data || []);
+
       let pMap = {};
-      try {
-        const appRes = await getApprovals();
-        const approvalsList = Array.isArray(appRes) ? appRes : (appRes.results || appRes.data || appRes || []);
-        approvalsList.forEach(a => {
-          if (a.status === 'PENDING') {
-            pMap[`${a.target_model}_${a.target_id}`] = a;
-          }
-        });
-      } catch (e) {
-        console.error("Failed to fetch approvals in Stocks", e);
-      }
+      const approvalsList = Array.isArray(appRes) ? appRes : (appRes.results || appRes.data || []);
+      approvalsList.forEach(a => {
+        if (a.status === 'PENDING') {
+          pMap[`${a.target_model}_${a.target_id}`] = a;
+        }
+      });
       setPendingMap(pMap);
       
       const getBusinessTodayStr = () => {
@@ -269,6 +266,9 @@ const Stocks = ({ user, showToast }) => {
           <button className="btn btn-blue" onClick={() => setShowOutward(true)}>
             <i className="fas fa-minus-circle"></i> - Outward Entry
           </button>
+          <button className="btn btn-green" onClick={() => downloadStocksPdf({ date: filterDate || businessDate })} style={{ background: '#059669' }}>
+            <i className="fas fa-file-pdf"></i> Export PDF Report
+          </button>
         </div>
       </div>
 
@@ -302,6 +302,7 @@ const Stocks = ({ user, showToast }) => {
                   <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '22%' }}>Party</th>
                   <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '18%' }}>Variety</th>
                   <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Bags</th>
+                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Rate</th>
                   <th className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '5%' }}>LF</th>
                   <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '12%' }}>Value</th>
                   <th className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>P/B<br/>Cost</th>
@@ -330,6 +331,7 @@ const Stocks = ({ user, showToast }) => {
                       <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
                       <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.variety_name, isPending, parties, varieties)}</td>
                       <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
+                      <td style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
                         {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
                       </td>
@@ -377,6 +379,7 @@ const Stocks = ({ user, showToast }) => {
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '22%' }}>Party</th>
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '18%' }}>Variety</th>
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Bags</th>
+                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Rate</th>
                   <th className="mobile-hide outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '5%' }}>LF</th>
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '12%' }}>Value</th>
                   <th className="mobile-hide outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>P/B<br/>Cost</th>
@@ -405,6 +408,7 @@ const Stocks = ({ user, showToast }) => {
                       <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
                       <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.variety_name, isPending, parties, varieties)}</td>
                       <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
+                      <td style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
                         {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
                       </td>

@@ -5,7 +5,7 @@ from rest_framework.pagination import CursorPagination
 from django.views.generic import TemplateView
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from django.db.models import Sum, Q, Max, F
+from django.db.models import Sum, Avg, Q, Max, F
 from django.http import HttpResponse
 from django.utils import timezone
 from datetime import timedelta, datetime
@@ -326,116 +326,132 @@ class EmptyBagsStockLedgerAPIView(APIView):
         varieties = Variety.objects.all()
         if variety_id:
             varieties = varieties.filter(id=variety_id)
+        varieties_list = list(varieties.order_by('name'))
 
-        result_ledger = []
+        # Pre-fetch latest inward & outward parties per variety
+        latest_in_parties = {}
+        for item in Inward.objects.filter(variety__in=varieties_list).select_related('party').order_by('date', 'id'):
+            if item.party:
+                latest_in_parties[item.variety_id] = item.party.name
 
-        for v in varieties:
-            inwards = Inward.objects.filter(variety=v).select_related('party').order_by('date', 'id')
-            outwards = Outward.objects.filter(variety=v).select_related('party').order_by('date', 'id')
+        latest_out_parties = {}
+        for item in Outward.objects.filter(variety__in=varieties_list).select_related('party').order_by('date', 'id'):
+            if item.party:
+                latest_out_parties[item.variety_id] = item.party.name
 
-            if invoice_no:
-                inwards = inwards.filter(invoice_no=invoice_no)
-                outwards = outwards.filter(invoice_no=invoice_no)
+        # Calculate opening stock prior to start_date
+        in_prior_qs = Inward.objects.all()
+        out_prior_qs = Outward.objects.all()
+        if parsed_start:
+            in_prior_qs = in_prior_qs.filter(date__lt=parsed_start)
+            out_prior_qs = out_prior_qs.filter(date__lt=parsed_start)
+        else:
+            in_prior_qs = in_prior_qs.none()
+            out_prior_qs = out_prior_qs.none()
 
-            transactions = []
-            for item in inwards:
-                transactions.append({
-                    'type': 'inward',
-                    'id': item.id,
-                    'party_name': item.party.name,
-                    'date': item.date,
-                    'bags': item.bags,
-                    'kgs': item.total_kgs,
-                    'lf_toggle': item.lf_toggle,
-                    'lf_amount': float(item.lf_amount) if item.lf_amount else 0.0,
-                })
-            for item in outwards:
-                transactions.append({
-                    'type': 'outward',
-                    'id': item.id,
-                    'party_name': item.party.name,
-                    'date': item.date,
-                    'bags': item.bags,
-                    'kgs': item.total_kgs,
-                    'lf_toggle': item.lf_toggle,
-                    'lf_amount': float(item.lf_amount) if item.lf_amount else 0.0,
-                })
+        in_op_map = {item['variety_id']: item['tot'] for item in in_prior_qs.values('variety_id').annotate(tot=Sum('bags'))}
+        out_op_map = {item['variety_id']: item['tot'] for item in out_prior_qs.values('variety_id').annotate(tot=Sum('bags'))}
 
-            transactions.sort(key=lambda x: (x['date'], x['type'], x['id']))
+        # Current range inward totals & LF sums
+        in_curr_qs = Inward.objects.all()
+        if parsed_start:
+            in_curr_qs = in_curr_qs.filter(date__gte=parsed_start)
+        if parsed_end:
+            in_curr_qs = in_curr_qs.filter(date__lte=parsed_end)
+        if invoice_no:
+            in_curr_qs = in_curr_qs.filter(invoice_no=invoice_no)
 
-            running_opening_bags = 0
-            running_opening_kgs = Decimal('0.00')
+        in_curr_map = {item['variety_id']: item for item in in_curr_qs.values('variety_id').annotate(
+            tot_bags=Sum('bags'),
+            avg_rate=Avg('rate'),
+            tot_val=Sum('total_value'),
+            tot_lf=Sum('lf_amount')
+        )}
 
-            for t in transactions:
-                if t['type'] == 'inward':
-                    in_bags = t['bags']
-                    in_kgs = t['kgs']
-                    out_bags = 0
-                    out_kgs = Decimal('0.00')
-                else:
-                    in_bags = 0
-                    in_kgs = Decimal('0.00')
-                    out_bags = t['bags']
-                    out_kgs = t['kgs']
+        # Current range outward totals & LF sums
+        out_curr_qs = Outward.objects.all()
+        if parsed_start:
+            out_curr_qs = out_curr_qs.filter(date__gte=parsed_start)
+        if parsed_end:
+            out_curr_qs = out_curr_qs.filter(date__lte=parsed_end)
+        if invoice_no:
+            out_curr_qs = out_curr_qs.filter(invoice_no=invoice_no)
 
-                closing_bags = running_opening_bags + in_bags - out_bags
-                closing_kgs = running_opening_kgs + in_kgs - out_kgs
+        out_curr_map = {item['variety_id']: item for item in out_curr_qs.values('variety_id').annotate(
+            tot_bags=Sum('bags'),
+            avg_rate=Avg('rate'),
+            tot_val=Sum('total_value'),
+            tot_lf=Sum('lf_amount')
+        )}
 
-                in_range = True
-                if parsed_start and t['date'] < parsed_start:
-                    in_range = False
-                if parsed_end and t['date'] > parsed_end:
-                    in_range = False
+        all_avg_rates = {item['variety_id']: item['avg_rate'] for item in Inward.objects.values('variety_id').annotate(avg_rate=Avg('rate'))}
 
-                if in_range:
-                    result_ledger.append({
-                        'variety_id': v.id,
-                        'variety_name': v.name,
-                        'party_name': t['party_name'],
-                        'date': str(t['date']),
-                        'opening_bags': running_opening_bags,
-                        'opening_kgs': float(running_opening_kgs),
-                        'lf_toggle': t['lf_toggle'],
-                        'lf_amount': t['lf_amount'],
-                        'inward_bags': in_bags,
-                        'inward_kgs': float(in_kgs),
-                        'outward_bags': out_bags,
-                        'outward_kgs': float(out_kgs),
-                        'closing_bags': closing_bags,
-                        'closing_kgs': float(closing_kgs),
-                    })
+        inwards_list = []
+        outwards_list = []
+        combined_ledger = []
 
-                running_opening_bags = closing_bags
-                running_opening_kgs = closing_kgs
+        for v in varieties_list:
+            v_id = v.id
+            op_in = in_op_map.get(v_id, 0) or 0
+            op_out = out_op_map.get(v_id, 0) or 0
+            opening_bags = op_in - op_out
 
-        # Sort by date ascending
-        result_ledger.sort(key=lambda x: x['date'])
+            in_info = in_curr_map.get(v_id, {})
+            out_info = out_curr_map.get(v_id, {})
 
-        # Pagination
-        try:
-            page = max(1, int(request.query_params.get('page', 1)))
-        except (ValueError, TypeError):
-            page = 1
-        try:
-            page_size = min(200, max(1, int(request.query_params.get('page_size', 50))))
-        except (ValueError, TypeError):
-            page_size = 50
+            inward_bags = in_info.get('tot_bags', 0) or 0
+            outward_bags = out_info.get('tot_bags', 0) or 0
 
-        total_count = len(result_ledger)
-        total_pages = max(1, (total_count + page_size - 1) // page_size)
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        page_data = result_ledger[start_idx:end_idx]
+            in_lf = float(in_info.get('tot_lf', 0) or 0.0)
+            out_lf = float(out_info.get('tot_lf', 0) or 0.0)
+
+            avg_rate_in = in_info.get('avg_rate') or all_avg_rates.get(v_id, 0)
+            rate_per_bag = float(round(Decimal(str(avg_rate_in or 0)), 2))
+            closing_bags = opening_bags + inward_bags - outward_bags
+
+            total_val = float(round(Decimal(str(closing_bags * rate_per_bag)), 2))
+
+            common_data = {
+                'variety_id': v_id,
+                'variety_name': v.name,
+                'kgs_per_bag': float(v.kgs_per_bag),
+                'opening_bags': opening_bags,
+                'rate_per_bag': rate_per_bag,
+                'closing_bags': closing_bags,
+                'total_value': total_val,
+            }
+
+            in_row = {
+                **common_data,
+                'latest_party': latest_in_parties.get(v_id, '-'),
+                'inward_bags': inward_bags,
+                'lf_total': in_lf,
+            }
+            out_row = {
+                **common_data,
+                'latest_party': latest_out_parties.get(v_id, '-'),
+                'outward_bags': outward_bags,
+                'lf_total': out_lf,
+            }
+
+            inwards_list.append(in_row)
+            outwards_list.append(out_row)
+            combined_ledger.append({
+                **common_data,
+                'inward_bags': inward_bags,
+                'outward_bags': outward_bags,
+            })
 
         return Response({
-            'results': page_data,
-            'pagination': {
-                'page': page,
-                'page_size': page_size,
-                'total_count': total_count,
-                'total_pages': total_pages,
-                'has_next': page < total_pages,
-                'has_previous': page > 1,
+            'inwards': inwards_list,
+            'outwards': outwards_list,
+            'results': combined_ledger,
+            'summary': {
+                'total_opening': sum(r['opening_bags'] for r in combined_ledger),
+                'total_inward': sum(r['inward_bags'] for r in combined_ledger),
+                'total_outward': sum(r['outward_bags'] for r in combined_ledger),
+                'total_closing': sum(r['closing_bags'] for r in combined_ledger),
+                'total_valuation': sum(r['total_value'] for r in combined_ledger),
             }
         })
 
@@ -465,6 +481,124 @@ class OutwardInvoicePDFView(APIView):
 
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="Outward_Invoice_{outward.invoice_no}.pdf"'
+        return response
+
+class VarietyDetailLedgerAPIView(APIView):
+    """Returns detailed itemized transaction history for a specific variety."""
+    def get(self, request, variety_id):
+        try:
+            variety = Variety.objects.get(pk=variety_id)
+        except Variety.DoesNotExist:
+            return Response({'error': 'Variety not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        month_param = request.query_params.get('month')
+
+        if month_param:
+            try:
+                year, mon = month_param.split('-')
+                year, mon = int(year), int(mon)
+                import calendar
+                start_date = f"{year}-{mon:02d}-01"
+                last_day = calendar.monthrange(year, mon)[1]
+                end_date = f"{year}-{mon:02d}-{last_day}"
+            except (ValueError, IndexError):
+                pass
+
+        parsed_start = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
+        parsed_end = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None
+
+        invoice_no = request.query_params.get('invoice_no')
+
+        inwards = Inward.objects.filter(variety=variety).select_related('party').order_by('date', 'id')
+        outwards = Outward.objects.filter(variety=variety).select_related('party').order_by('date', 'id')
+
+        transactions = []
+        for item in inwards:
+            transactions.append({
+                'type': 'inward',
+                'id': item.id,
+                'invoice_no': item.invoice_no,
+                'party_name': item.party.name if item.party else '-',
+                'date': str(item.date),
+                'bags': item.bags,
+                'rate': float(item.rate),
+                'per_bag_cost': float(item.per_bag_cost) if item.per_bag_cost else float(item.rate),
+                'lf_toggle': item.lf_toggle,
+                'lf_amount': float(item.lf_amount) if item.lf_amount else 0.0,
+                'total_value': float(item.total_value),
+            })
+        for item in outwards:
+            transactions.append({
+                'type': 'outward',
+                'id': item.id,
+                'invoice_no': item.invoice_no,
+                'party_name': item.party.name if item.party else '-',
+                'date': str(item.date),
+                'bags': item.bags,
+                'rate': float(item.rate),
+                'per_bag_cost': float(item.per_bag_cost) if item.per_bag_cost else float(item.rate),
+                'lf_toggle': item.lf_toggle,
+                'lf_amount': float(item.lf_amount) if item.lf_amount else 0.0,
+                'total_value': float(item.total_value),
+            })
+
+        transactions.sort(key=lambda x: (x['date'], x['id']))
+
+        running_balance = 0
+        final_list = []
+        for t in transactions:
+            if t['type'] == 'inward':
+                running_balance += t['bags']
+            else:
+                running_balance -= t['bags']
+            
+            t_date = datetime.strptime(t['date'], '%Y-%m-%d').date()
+            if parsed_start and t_date < parsed_start:
+                continue
+            if parsed_end and t_date > parsed_end:
+                continue
+            if invoice_no and invoice_no.strip().lower() not in (t['invoice_no'] or '').strip().lower():
+                continue
+
+            t['closing_balance'] = running_balance
+            final_list.append(t)
+
+        return Response({
+            'variety': {
+                'id': variety.id,
+                'name': variety.name,
+                'kgs_per_bag': float(variety.kgs_per_bag)
+            },
+            'transactions': final_list
+        })
+
+class ExportStocksPDFView(APIView):
+    def get(self, request):
+        from .pdf import generate_stocks_summary_pdf
+        date_param = request.query_params.get('date') or str(get_current_business_date())
+        inwards = InwardSerializer(Inward.objects.filter(date=date_param).select_related('party', 'variety'), many=True).data
+        outwards = OutwardSerializer(Outward.objects.filter(date=date_param).select_related('party', 'variety'), many=True).data
+        
+        pdf_bytes = generate_stocks_summary_pdf("Stocks Report", date_param, inwards, outwards)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="Stocks_Report_{date_param}.pdf"'
+        return response
+
+class ExportLedgerPDFView(APIView):
+    def get(self, request):
+        from .pdf import generate_ledger_summary_pdf
+        ledger_view = EmptyBagsStockLedgerAPIView()
+        res = ledger_view.get(request)
+        inwards_data = res.data.get('inwards', [])
+        outwards_data = res.data.get('outwards', [])
+        
+        date_str = request.query_params.get('month') or request.query_params.get('start_date') or "All Records"
+        pdf_bytes = generate_ledger_summary_pdf("Empty Bags Ledger Report", date_str, inwards_data, outwards_data)
+        
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="Empty_Bags_Ledger_{date_str}.pdf"'
         return response
 
 from rest_framework.decorators import action

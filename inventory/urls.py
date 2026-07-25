@@ -3,8 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     UserProfileViewSet, PlaceViewSet, PartyViewSet, VarietyViewSet,
     InwardViewSet, OutwardViewSet, LoginAPIView, LogoutAPIView,
-    SystemAlertsAPIView, EmptyBagsStockLedgerAPIView,
-    InwardInvoicePDFView, OutwardInvoicePDFView, ApprovalRequestViewSet
+    SystemAlertsAPIView, EmptyBagsStockLedgerAPIView, VarietyDetailLedgerAPIView,
+    InwardInvoicePDFView, OutwardInvoicePDFView, ApprovalRequestViewSet,
+    ExportStocksPDFView, ExportLedgerPDFView
 )
 
 router = DefaultRouter()
@@ -21,6 +22,9 @@ urlpatterns = [
     path('auth/logout/', LogoutAPIView.as_view(), name='api-logout'),
     path('alerts/', SystemAlertsAPIView.as_view(), name='api-alerts'),
     path('empty-bags-ledger/', EmptyBagsStockLedgerAPIView.as_view(), name='api-empty-bags-ledger'),
+    path('variety-ledger/<int:variety_id>/', VarietyDetailLedgerAPIView.as_view(), name='api-variety-ledger'),
+    path('stocks/export-pdf/', ExportStocksPDFView.as_view(), name='stocks-export-pdf'),
+    path('ledger/export-pdf/', ExportLedgerPDFView.as_view(), name='ledger-export-pdf'),
     path('inward/<int:pk>/pdf/', InwardInvoicePDFView.as_view(), name='inward-pdf'),
     path('outward/<int:pk>/pdf/', OutwardInvoicePDFView.as_view(), name='outward-pdf'),
     path('', include(router.urls)),

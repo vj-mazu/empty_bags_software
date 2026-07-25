@@ -1,4 +1,10 @@
-const API = import.meta.env.VITE_API_URL || 'https://empty-bags-software.onrender.com/api';
+const isLocalhost = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === '[::1]'
+);
+
+const API = import.meta.env.VITE_API_URL || (isLocalhost ? '/api' : 'https://empty-bags-software.onrender.com/api');
 
 function getCookie(name) {
   let cookieValue = null;
@@ -146,8 +152,32 @@ export const getLedger = (params = {}) => {
   return api(`/empty-bags-ledger/?${q.toString()}`);
 };
 
+export const getVarietyLedger = (varietyId, params = {}) => {
+  const q = new URLSearchParams();
+  if (params.start_date) q.set('start_date', params.start_date);
+  if (params.end_date) q.set('end_date', params.end_date);
+  if (params.month) q.set('month', params.month);
+  if (params.invoice_no) q.set('invoice_no', params.invoice_no);
+  return api(`/variety-ledger/${varietyId}/?${q.toString()}`);
+};
+
 export const downloadPdf = (type, id) => {
   window.open(`${API}/${type}/${id}/pdf/`, '_blank');
+};
+
+export const downloadStocksPdf = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.date) q.set('date', params.date);
+  window.open(`${API}/stocks/export-pdf/?${q.toString()}`, '_blank');
+};
+
+export const downloadLedgerPdf = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.start_date) q.set('start_date', params.start_date);
+  if (params.end_date) q.set('end_date', params.end_date);
+  if (params.month) q.set('month', params.month);
+  if (params.variety_id) q.set('variety_id', params.variety_id);
+  window.open(`${API}/ledger/export-pdf/?${q.toString()}`, '_blank');
 };
 
 export const getApprovals = () => api('/approvals/');

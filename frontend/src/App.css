@@ -661,6 +661,7 @@ select.input { cursor: pointer; }
 @media (max-width: 1024px) {
   .masters-grid { grid-template-columns: 1fr; }
   .masters-grid .card.full-width { grid-column: span 1; }
+  .ledger-grid { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 768px) {
