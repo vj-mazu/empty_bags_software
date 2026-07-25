@@ -131,70 +131,96 @@ const Approvals = ({ showToast }) => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
-        {requests.map(req => (
-          <div className="card" key={req.id} style={{ borderLeft: req.action_type === 'DELETE' ? '4px solid #ef4444' : '4px solid #f59e0b', borderTop: req.target_model === 'OUTWARD' ? '4px solid #ef4444' : '4px solid #10b981', margin: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <span className={`role-pill ${req.action_type === 'DELETE' ? 'role-owner' : 'role-staff'}`} style={{ textTransform: 'uppercase', fontSize: '0.68rem', fontWeight: 800 }}>
-                {req.action_type} Request
-              </span>
-              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
-                {new Date(req.created_at).toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-
-            <div style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
-              <div style={{ fontWeight: 700, color: '#1e293b' }}>
-                {req.target_model} {req.target_details?.invoice_no ? `Invoice: ${req.target_details.invoice_no}` : `Entry #${req.target_id}`}
-              </div>
-              <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '0.15rem' }}>
-                Requested by: <span style={{ fontWeight: 700, color: '#475569' }}>{req.requested_by_username || 'Staff'}</span>
-              </div>
-            </div>
-
-            {/* Target Record Details (Party, Variety, Bags, Value, Date) */}
-            {req.target_details && (
-              <div style={{ background: '#f8fafc', padding: '0.5rem 0.65rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.76rem', marginBottom: '0.75rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.75rem' }}>
-                  <div><span style={{ color: '#64748b' }}>Party:</span> <strong style={{ color: '#0f172a' }}>{req.target_details.party_name}</strong></div>
-                  <div><span style={{ color: '#64748b' }}>Variety:</span> <strong style={{ color: '#0f172a' }}>{req.target_details.variety_name}</strong></div>
-                  <div><span style={{ color: '#64748b' }}>Bags:</span> <strong style={{ color: '#2563eb' }}>{req.target_details.bags} Bags</strong></div>
-                  <div><span style={{ color: '#64748b' }}>Date:</span> <strong style={{ color: '#0f172a' }}>{req.target_details.date}</strong></div>
-                  {req.target_details.total_value && (
-                    <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#64748b' }}>Total Value:</span> <strong style={{ color: '#10b981' }}>₹{Number(req.target_details.total_value).toLocaleString('en-IN')}</strong></div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {req.action_type === 'EDIT' && req.proposed_data && (
-              <div style={{ background: '#fffbeb', padding: '0.5rem 0.65rem', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '0.76rem', marginBottom: '1rem' }}>
-                <div style={{ fontWeight: 700, color: '#b45309', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.62rem' }}>Proposed Edits:</div>
-                {Object.entries(req.proposed_data).map(([k, v]) => (
-                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.15rem 0' }}>
-                    <span style={{ fontWeight: 600, color: '#475569' }}>{formatKeyName(k)}:</span>
-                    <span style={{ fontWeight: 700, color: '#b45309' }}>{getDisplayValue(k, v)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {req.action_type === 'DELETE' && (
-              <div style={{ background: '#fef2f2', padding: '0.5rem', borderRadius: '6px', border: '1px solid #fee2e2', fontSize: '0.76rem', color: '#991b1b', marginBottom: '1rem', fontWeight: 600 }}>
-                <i className="fas fa-exclamation-triangle"></i> Deletion Request: Approving will permanently remove this {req.target_model.toLowerCase()} invoice from stock records.
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-green btn-sm" onClick={() => handleApprove(req.id)} style={{ flex: 1 }}>
-                <i className="fas fa-check"></i> Approve
-              </button>
-              <button className="btn btn-red btn-sm" onClick={() => handleReject(req.id)} style={{ flex: 1 }}>
-                <i className="fas fa-times"></i> Reject
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
+          <table style={{ tableLayout: 'auto', width: '100%', fontSize: '0.74rem' }}>
+            <thead>
+              <tr>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '4%' }}>SL<br/>No</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Type</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Action</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '12%' }}>Invoice No</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '9%' }}>Date</th>
+                <th style={{ padding: '0.4rem 0.3rem', width: '14%' }}>Party</th>
+                <th style={{ padding: '0.4rem 0.3rem', width: '12%' }}>Variety</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '6%' }}>Bags</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'right', width: '9%' }}>Total Value</th>
+                <th style={{ padding: '0.4rem 0.3rem', width: '18%' }}>Details / Changes</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Requested By</th>
+                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((req, idx) => {
+                const isDelete = req.action_type === 'DELETE';
+                const rowBg = isDelete ? '#fee2e2' : '#fef08a';
+                return (
+                  <tr key={req.id} style={{ backgroundColor: rowBg }}>
+                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'center' }}>{idx + 1}</td>
+                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center' }}>
+                      <span className={`role-pill ${req.target_model === 'OUTWARD' ? 'role-owner' : 'role-staff'}`} style={{ fontSize: '0.62rem', padding: '1px 6px' }}>
+                        {req.target_model}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center' }}>
+                      <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', color: '#fff', backgroundColor: isDelete ? '#dc2626' : '#d97706' }}>
+                        {req.action_type}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'center', color: '#2563eb' }}>
+                      {req.target_details?.invoice_no || `#${req.target_id}`}
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      {req.target_details?.date || '-'}
+                    </td>
+                    <td className="wrap-text" style={{ padding: '0.4rem 0.3rem', fontWeight: 600 }}>
+                      {req.target_details?.party_name || '-'}
+                    </td>
+                    <td className="wrap-text" style={{ padding: '0.4rem 0.3rem', fontWeight: 600 }}>
+                      {req.target_details?.variety_name || '-'}
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'center', color: '#2563eb' }}>
+                      {req.target_details?.bags || '-'}
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'right', color: '#10b981' }}>
+                      {req.target_details?.total_value ? `₹${Number(req.target_details.total_value).toLocaleString('en-IN')}` : '-'}
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', fontSize: '0.7rem' }}>
+                      {isDelete ? (
+                        <span style={{ color: '#991b1b', fontWeight: 700 }}>
+                          <i className="fas fa-trash"></i> Requesting permanent deletion of record
+                        </span>
+                      ) : (
+                        req.proposed_data && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                            {Object.entries(req.proposed_data).map(([k, v]) => (
+                              <div key={k}>
+                                <span style={{ color: '#64748b' }}>{formatKeyName(k)}:</span> <strong style={{ color: '#b45309' }}>{getDisplayValue(k, v)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      )}
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center', fontWeight: 700, color: '#475569' }}>
+                      {req.requested_by_username || 'Staff'}
+                    </td>
+                    <td style={{ padding: '0.4rem 0.3rem' }}>
+                      <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                        <button className="btn btn-green btn-sm" title="Approve" onClick={() => handleApprove(req.id)} style={{ padding: '2px 6px', fontSize: '0.68rem' }}>
+                          <i className="fas fa-check"></i>
+                        </button>
+                        <button className="btn btn-red btn-sm" title="Reject" onClick={() => handleReject(req.id)} style={{ padding: '2px 6px', fontSize: '0.68rem' }}>
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <CustomConfirmModal 
