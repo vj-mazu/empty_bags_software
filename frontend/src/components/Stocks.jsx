@@ -23,6 +23,37 @@ const formatDateString = (dateStr) => {
   return dateStr;
 };
 
+const renderProposedChange = (item, fieldName, originalVal, isPending, parties, varieties) => {
+  if (!isPending || isPending.action_type !== 'EDIT' || !isPending.proposed_data) {
+    return originalVal;
+  }
+  const proposed = isPending.proposed_data[fieldName];
+  if (proposed === undefined || proposed === null || String(proposed) === String(item[fieldName])) {
+    return originalVal;
+  }
+
+  let displayNew = proposed;
+  if (fieldName === 'party') {
+    const found = parties?.find(p => String(p.id) === String(proposed));
+    displayNew = found ? found.name : proposed;
+  } else if (fieldName === 'variety') {
+    const found = varieties?.find(v => String(v.id) === String(proposed));
+    displayNew = found ? found.name : proposed;
+  } else if (fieldName === 'rate' || fieldName === 'total_value' || fieldName === 'lf_amount') {
+    const num = Number(proposed) || 0;
+    displayNew = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(num);
+  } else if (fieldName === 'lf_toggle') {
+    displayNew = proposed ? 'LF On' : 'LF Off';
+  }
+
+  return (
+    <div style={{ lineHeight: '1.1' }}>
+      <div style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.65rem' }}>{originalVal}</div>
+      <div style={{ color: '#b45309', fontWeight: 800 }}>➜ {displayNew}</div>
+    </div>
+  );
+};
+
 const Stocks = ({ user, showToast }) => {
   const [varieties, setVarieties] = useState([]);
   const [inwards, setInwards] = useState([]);
@@ -270,11 +301,13 @@ const Stocks = ({ user, showToast }) => {
                           </div>
                         )}
                       </td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{item.party_name}</td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{item.variety_name}</td>
-                      <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{item.bags}</td>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>{item.lf_toggle ? formatINR(item.lf_amount) : '-'}</td>
-                      <td className="text-green" style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{formatINR(item.total_value)}</td>
+                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
+                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.variety_name, isPending, parties, varieties)}</td>
+                      <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
+                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
+                        {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
+                      </td>
+                      <td className="text-green" style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'total_value', formatINR(item.total_value), isPending, parties, varieties)}</td>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'right' }}>
                         {formatINR(item.per_bag_cost && Number(item.per_bag_cost) > 0 ? item.per_bag_cost : (Number(item.total_value) / Number(item.bags || 1)))}
                       </td>
@@ -343,11 +376,13 @@ const Stocks = ({ user, showToast }) => {
                           </div>
                         )}
                       </td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{item.party_name}</td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{item.variety_name}</td>
-                      <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{item.bags}</td>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>{item.lf_toggle ? formatINR(item.lf_amount) : '-'}</td>
-                      <td className="text-green" style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{formatINR(item.total_value)}</td>
+                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
+                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.variety_name, isPending, parties, varieties)}</td>
+                      <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
+                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
+                        {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
+                      </td>
+                      <td className="text-green" style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'total_value', formatINR(item.total_value), isPending, parties, varieties)}</td>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'right' }}>
                         {formatINR(item.per_bag_cost && Number(item.per_bag_cost) > 0 ? item.per_bag_cost : (Number(item.total_value) / Number(item.bags || 1)))}
                       </td>
