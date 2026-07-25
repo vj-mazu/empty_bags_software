@@ -12,7 +12,14 @@ import { getVarieties } from './api';
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [masterSubSection, setMasterSubSection] = useState(null);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('mother_india_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [showLogin, setShowLogin] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   
@@ -50,11 +57,24 @@ export default function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
-    showToast('Logged in successfully!');
+    try {
+      localStorage.setItem('mother_india_user', JSON.stringify(userData));
+    } catch (e) {
+      console.error('Failed to save user session', e);
+    }
+    showToast(`Logged in successfully as ${userData.username || 'User'}!`);
   };
 
   const handleLogout = () => {
     setUser(null);
+    try {
+      localStorage.removeItem('mother_india_user');
+    } catch (e) {
+      console.error('Failed to clear user session', e);
+    }
+    if (activeTab === 'approvals') {
+      setActiveTab('dashboard');
+    }
     showToast('Logged out successfully!');
   };
 
