@@ -77,8 +77,11 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
         lf_amount: numLfAmount
       };
 
+      const savedUser = (() => { try { return JSON.parse(localStorage.getItem('mother_india_user') || '{}'); } catch(e){ return {}; } })();
+      const isOwner = user?.role === 'OWNER' || savedUser?.role === 'OWNER';
+
       if (editItem) {
-        if (user?.role === 'OWNER') {
+        if (isOwner) {
           await updateInward(editItem.id, payload);
           if (showToast) showToast('Inward entry updated successfully!');
         } else {

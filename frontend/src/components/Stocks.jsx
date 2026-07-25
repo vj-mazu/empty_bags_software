@@ -93,7 +93,10 @@ const Stocks = ({ user, showToast }) => {
       onConfirm: async () => {
         setConfirmState(prev => ({ ...prev, isOpen: false }));
         try {
-          if (user?.role === 'OWNER') {
+          const savedUser = (() => { try { return JSON.parse(localStorage.getItem('mother_india_user') || '{}'); } catch(e){ return {}; } })();
+          const isOwner = user?.role === 'OWNER' || savedUser?.role === 'OWNER';
+
+          if (isOwner) {
             if (type === 'inward') {
               await deleteInward(id);
             } else {

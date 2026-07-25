@@ -77,8 +77,11 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
         lf_amount: numLfAmount
       };
 
+      const savedUser = (() => { try { return JSON.parse(localStorage.getItem('mother_india_user') || '{}'); } catch(e){ return {}; } })();
+      const isOwner = user?.role === 'OWNER' || savedUser?.role === 'OWNER';
+
       if (editItem) {
-        if (user?.role === 'OWNER') {
+        if (isOwner) {
           await updateOutward(editItem.id, payload);
           if (showToast) showToast('Outward entry updated successfully!');
         } else {
