@@ -177,6 +177,7 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
         total_val = 0.0
 
         c.setFont("Helvetica", 7.0)
+        from inventory.models import Variety
         for idx, r in enumerate(rows):
             if cur_y < 50:
                 c.showPage()
@@ -188,7 +189,19 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
             pb = float(r.get('per_bag_cost', 0) or 0)
             lf_amt = float(r.get('lf_amount', 0) or 0)
             lf_display = f"Rs.{lf_amt:.2f}" if r.get('lf_toggle') and lf_amt > 0 else "-"
+            
             kgs = float(r.get('kgs_per_bag', 0) or 0)
+            if kgs == 0:
+                try:
+                    v_id = r.get('variety') or r.get('variety_id')
+                    if isinstance(v_id, dict):
+                        v_id = v_id.get('id')
+                    if v_id:
+                        v_obj = Variety.objects.get(id=v_id)
+                        kgs = float(v_obj.kgs_per_bag or 0)
+                except Exception:
+                    pass
+                    
             v_name = str(r.get('variety_name', '-'))
             if kgs > 0 and f"({kgs}" not in v_name:
                 v_name = f"{v_name} ({kgs:.1f} kg)"
@@ -308,8 +321,20 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
             lf = float(r.get('lf_total', 0) or 0.0)
             rate_man = float(r.get('rate_per_bag', 0) or 0.0)
             rate_avg = float(r.get('rate_per_bag', 0) or 0.0)
-            kgs = float(r.get('kgs_per_bag', 0) or 0.0)
             
+            kgs = float(r.get('kgs_per_bag', 0) or 0.0)
+            if kgs == 0:
+                try:
+                    from inventory.models import Variety
+                    v_id = r.get('variety') or r.get('variety_id')
+                    if isinstance(v_id, dict):
+                        v_id = v_id.get('id')
+                    if v_id:
+                        v_obj = Variety.objects.get(id=v_id)
+                        kgs = float(v_obj.kgs_per_bag or 0)
+                except Exception:
+                    pass
+
             v_name = str(r.get('variety_name', '-'))
             if kgs > 0 and f"({kgs}" not in v_name:
                 v_name = f"{v_name} ({kgs:.1f} kg)"
