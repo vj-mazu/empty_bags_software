@@ -115,16 +115,47 @@ class DailyStockSummarySerializer(serializers.ModelSerializer):
             'opening_kgs', 'inward_kgs', 'outward_kgs', 'closing_kgs'
         ]
 
-from .models import ApprovalRequest
+from .models import ApprovalRequest, Inward, Outward
 
 class ApprovalRequestSerializer(serializers.ModelSerializer):
     requested_by_username = serializers.ReadOnlyField(source='requested_by.username')
+    target_details = serializers.SerializerMethodField()
 
     class Meta:
         model = ApprovalRequest
         fields = [
             'id', 'action_type', 'target_model', 'target_id', 
-            'proposed_data', 'requested_by', 'requested_by_username', 
+            'proposed_data', 'target_details', 'requested_by', 'requested_by_username', 
             'status', 'created_at', 'reviewed_at'
         ]
         read_only_fields = ['requested_by']
+
+    def get_target_details(self, obj):
+        try:
+            if obj.target_model == 'INWARD':
+                item = Inward.objects.filter(pk=obj.target_id).select_related('party', 'variety').first()
+                if item:
+                    return {
+                        'invoice_no': item.invoice_no,
+                        'party_name': item.party.name if item.party else '-',
+                        'variety_name': item.variety.name if item.variety else '-',
+                        'bags': item.bags,
+                        'rate': str(item.rate),
+                        'total_value': str(item.total_value),
+                        'date': str(item.date)
+                    }
+            elif obj.target_model == 'OUTWARD':
+                item = Outward.objects.filter(pk=obj.target_id).select_related('party', 'variety').first()
+                if item:
+                    return {
+                        'invoice_no': item.invoice_no,
+                        'party_name': item.party.name if item.party else '-',
+                        'variety_name': item.variety.name if item.variety else '-',
+                        'bags': item.bags,
+                        'rate': str(item.rate),
+                        'total_value': str(item.total_value),
+                        'date': str(item.date)
+                    }
+        except Exception:
+            pass
+        return None

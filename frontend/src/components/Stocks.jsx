@@ -254,13 +254,18 @@ const Stocks = ({ user, showToast }) => {
               <tbody>
                 {Array.isArray(inwards) && inwards.map((item, index) => {
                   const isPending = pendingMap[`INWARD_${item.id}`];
+                  const rowBg = isPending 
+                    ? (isPending.action_type === 'DELETE' ? '#fee2e2' : '#fef08a') 
+                    : 'transparent';
+                  const badgeBg = isPending?.action_type === 'DELETE' ? '#dc2626' : '#d97706';
+
                   return (
-                    <tr key={item.id} style={isPending ? { backgroundColor: '#fef08a' } : {}}>
+                    <tr key={item.id} style={{ backgroundColor: rowBg }}>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{index + 1}</td>
                       <td className="text-blue" style={{ padding: '0.35rem 0.25rem' }}>
                         <div style={{ wordBreak: 'break-all' }}>{item.invoice_no}</div>
                         {isPending && (
-                          <div style={{ display: 'inline-block', fontSize: '0.55rem', background: '#d97706', color: '#fff', padding: '1px 3px', borderRadius: '3px', marginTop: '0.15rem', fontWeight: 'bold' }}>
+                          <div style={{ display: 'inline-block', fontSize: '0.55rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', marginTop: '0.15rem', fontWeight: 'bold' }}>
                             PENDING {isPending.action_type}
                           </div>
                         )}
@@ -322,13 +327,18 @@ const Stocks = ({ user, showToast }) => {
               <tbody>
                 {Array.isArray(outwards) && outwards.map((item, index) => {
                   const isPending = pendingMap[`OUTWARD_${item.id}`];
+                  const rowBg = isPending 
+                    ? (isPending.action_type === 'DELETE' ? '#fee2e2' : '#fef08a') 
+                    : 'transparent';
+                  const badgeBg = isPending?.action_type === 'DELETE' ? '#dc2626' : '#d97706';
+
                   return (
-                    <tr key={item.id} style={isPending ? { backgroundColor: '#fef08a' } : {}}>
+                    <tr key={item.id} style={{ backgroundColor: rowBg }}>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{index + 1}</td>
                       <td className="text-blue" style={{ padding: '0.35rem 0.25rem' }}>
                         <div style={{ wordBreak: 'break-all' }}>{item.invoice_no}</div>
                         {isPending && (
-                          <div style={{ display: 'inline-block', fontSize: '0.55rem', background: '#d97706', color: '#fff', padding: '1px 3px', borderRadius: '3px', marginTop: '0.15rem', fontWeight: 'bold' }}>
+                          <div style={{ display: 'inline-block', fontSize: '0.55rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', marginTop: '0.15rem', fontWeight: 'bold' }}>
                             PENDING {isPending.action_type}
                           </div>
                         )}

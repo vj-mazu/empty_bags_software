@@ -145,28 +145,43 @@ const Approvals = ({ showToast }) => {
 
             <div style={{ fontSize: '0.85rem', marginBottom: '0.75rem' }}>
               <div style={{ fontWeight: 700, color: '#1e293b' }}>
-                {req.target_model} Entry #{req.target_id}
+                {req.target_model} {req.target_details?.invoice_no ? `Invoice: ${req.target_details.invoice_no}` : `Entry #${req.target_id}`}
               </div>
               <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '0.15rem' }}>
-                Requested by: <span style={{ fontWeight: 700, color: '#475569' }}>{req.requested_by_username}</span>
+                Requested by: <span style={{ fontWeight: 700, color: '#475569' }}>{req.requested_by_username || 'Staff'}</span>
               </div>
             </div>
 
+            {/* Target Record Details (Party, Variety, Bags, Value, Date) */}
+            {req.target_details && (
+              <div style={{ background: '#f8fafc', padding: '0.5rem 0.65rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.76rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem 0.75rem' }}>
+                  <div><span style={{ color: '#64748b' }}>Party:</span> <strong style={{ color: '#0f172a' }}>{req.target_details.party_name}</strong></div>
+                  <div><span style={{ color: '#64748b' }}>Variety:</span> <strong style={{ color: '#0f172a' }}>{req.target_details.variety_name}</strong></div>
+                  <div><span style={{ color: '#64748b' }}>Bags:</span> <strong style={{ color: '#2563eb' }}>{req.target_details.bags} Bags</strong></div>
+                  <div><span style={{ color: '#64748b' }}>Date:</span> <strong style={{ color: '#0f172a' }}>{req.target_details.date}</strong></div>
+                  {req.target_details.total_value && (
+                    <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#64748b' }}>Total Value:</span> <strong style={{ color: '#10b981' }}>₹{Number(req.target_details.total_value).toLocaleString('en-IN')}</strong></div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {req.action_type === 'EDIT' && req.proposed_data && (
-              <div style={{ background: '#f8fafc', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.76rem', marginBottom: '1rem' }}>
-                <div style={{ fontWeight: 700, color: '#64748b', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.62rem' }}>Proposed Changes:</div>
+              <div style={{ background: '#fffbeb', padding: '0.5rem 0.65rem', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '0.76rem', marginBottom: '1rem' }}>
+                <div style={{ fontWeight: 700, color: '#b45309', marginBottom: '0.35rem', textTransform: 'uppercase', fontSize: '0.62rem' }}>Proposed Edits:</div>
                 {Object.entries(req.proposed_data).map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.15rem 0' }}>
                     <span style={{ fontWeight: 600, color: '#475569' }}>{formatKeyName(k)}:</span>
-                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{getDisplayValue(k, v)}</span>
+                    <span style={{ fontWeight: 700, color: '#b45309' }}>{getDisplayValue(k, v)}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {req.action_type === 'DELETE' && (
-              <div style={{ background: '#fef2f2', padding: '0.5rem', borderRadius: '4px', border: '1px solid #fee2e2', fontSize: '0.76rem', color: '#991b1b', marginBottom: '1rem', fontWeight: 600 }}>
-                <i className="fas fa-exclamation-triangle"></i> This action will permanently delete the transaction record.
+              <div style={{ background: '#fef2f2', padding: '0.5rem', borderRadius: '6px', border: '1px solid #fee2e2', fontSize: '0.76rem', color: '#991b1b', marginBottom: '1rem', fontWeight: 600 }}>
+                <i className="fas fa-exclamation-triangle"></i> Deletion Request: Approving will permanently remove this {req.target_model.toLowerCase()} invoice from stock records.
               </div>
             )}
 
