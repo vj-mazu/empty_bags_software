@@ -83,7 +83,15 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
                 {user.role}
               </span>
             )}
-            <button className="btn btn-sm" onClick={onLogout} style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', fontWeight: 'bold', padding: '4px 10px' }}>
+            <button 
+              className="btn btn-sm" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setDropdownOpen(false);
+                if (onLogout) onLogout();
+              }} 
+              style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', fontWeight: 'bold', padding: '4px 10px', cursor: 'pointer' }}
+            >
               <i className="fas fa-right-from-bracket"></i> Logout
             </button>
           </div>

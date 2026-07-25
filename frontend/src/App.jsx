@@ -69,6 +69,7 @@ export default function App() {
     setUser(null);
     try {
       localStorage.removeItem('mother_india_user');
+      sessionStorage.clear();
     } catch (e) {
       console.error('Failed to clear user session', e);
     }

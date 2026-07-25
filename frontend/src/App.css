@@ -758,16 +758,36 @@ th, td {
   }
   /* Force grid properties to stack vertically */
   div[style*="gridTemplateColumns"],
-  div[style*="grid-template-columns"] {
+  div[style*="grid-template-columns"],
+  .ledger-grid {
     grid-template-columns: 1fr !important;
   }
-  /* Collapse navigation and forms gracefully */
-  .nav-links {
-    flex-wrap: wrap;
+  /* Navbar mobile optimization */
+  .navbar {
+    padding: 0.65rem 0.85rem !important;
+    flex-wrap: wrap !important;
     gap: 0.5rem !important;
+  }
+  .nav-links {
+    flex-wrap: wrap !important;
+    gap: 0.4rem !important;
+    width: 100% !important;
+  }
+  .nav-tab {
+    font-size: 0.75rem !important;
+    padding: 0.35rem 0.6rem !important;
   }
   .form-grid {
     grid-template-columns: 1fr !important;
+  }
+  /* Mobile table scroll wrappers */
+  .tbl-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  th, td {
+    padding: 3px 4px !important;
+    font-size: 0.72rem !important;
   }
 }
 
