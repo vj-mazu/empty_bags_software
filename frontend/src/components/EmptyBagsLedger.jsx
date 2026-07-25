@@ -187,27 +187,6 @@ const EmptyBagsLedger = () => {
         </div>
       </div>
 
-      {/* LEDGER OPENING STOCK SUMMARY */}
-      <div style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <i className="fas fa-boxes-stacked" style={{ color: '#2563eb', fontSize: '1.4rem' }}></i>
-            <div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Consolidated Ledger Position</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e3a8a' }}>
-                {(summary?.total_closing || 0).toLocaleString()} Bags (Closing Balance)
-              </div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Total Stock Value</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#10b981' }}>
-              {formatINR(summary?.total_valuation || 0)}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* SIDE-BY-SIDE REGISTERS GRID */}
       <div className="ledger-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
         
@@ -230,7 +209,7 @@ const EmptyBagsLedger = () => {
                   <th style={{ padding: '0.35rem 0.25rem', textAlign: 'right', width: '70px' }}>p/b cost</th>
                   <th style={{ padding: '0.35rem 0.25rem', textAlign: 'right', width: '75px' }}>LF Total</th>
                   <th style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: '55px' }}>In. Bags</th>
-                  <th style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: '55px' }}>Cl. Bags</th>
+                  <th style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: '65px' }}>Rem. Bags</th>
                   <th style={{ padding: '0.35rem 0.25rem', textAlign: 'right', width: '90px' }}>Total Value</th>
                 </tr>
               </thead>
@@ -297,7 +276,7 @@ const EmptyBagsLedger = () => {
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', textAlign: 'right', width: '70px' }}>p/b cost</th>
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', textAlign: 'right', width: '75px' }}>LF Total</th>
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: '55px' }}>Out. Bags</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: '55px' }}>Cl. Bags</th>
+                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: '65px' }}>Rem. Bags</th>
                   <th className="outward-th" style={{ padding: '0.35rem 0.25rem', textAlign: 'right', width: '90px' }}>Total Value</th>
                 </tr>
               </thead>
