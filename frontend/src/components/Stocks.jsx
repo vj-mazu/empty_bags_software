@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getVarieties, getInwards, getOutwards, downloadPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals } from '../api';
+import { getVarieties, getParties, getInwards, getOutwards, downloadPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals } from '../api';
 import InwardModal from './InwardModal';
 import OutwardModal from './OutwardModal';
 
@@ -56,6 +56,7 @@ const renderProposedChange = (item, fieldName, originalVal, isPending, parties, 
 
 const Stocks = ({ user, showToast }) => {
   const [varieties, setVarieties] = useState([]);
+  const [parties, setParties] = useState([]);
   const [inwards, setInwards] = useState([]);
   const [outwards, setOutwards] = useState([]);
   const [search, setSearch] = useState('');
@@ -124,6 +125,9 @@ const Stocks = ({ user, showToast }) => {
     try {
       const vRes = await getVarieties();
       setVarieties(vRes.results || vRes.data || vRes);
+      
+      const pRes = await getParties();
+      setParties(pRes.results || pRes.data || pRes || []);
       
       const inRes = await getInwards({ all: 'true' });
       const inRows = Array.isArray(inRes) ? inRes : (inRes.results || inRes.data || inRes || []);
