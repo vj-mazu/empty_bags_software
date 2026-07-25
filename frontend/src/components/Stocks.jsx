@@ -57,7 +57,7 @@ const renderProposedChange = (item, fieldName, originalVal, isPending, parties, 
     displayNew = found ? found.name : proposed;
   } else if (fieldName === 'variety') {
     const found = varieties?.find(v => String(v.id) === String(proposed));
-    displayNew = found ? found.name : proposed;
+    displayNew = found ? `${found.name} (${Number(found.kgs_per_bag).toFixed(1)} kg)` : proposed;
   } else if (fieldName === 'rate' || fieldName === 'total_value' || fieldName === 'lf_amount') {
     const num = Number(proposed) || 0;
     displayNew = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(num);
@@ -329,7 +329,7 @@ const Stocks = ({ user, showToast }) => {
                         )}
                       </td>
                       <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.variety_name, isPending, parties, varieties)}</td>
+                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.kgs_per_bag ? `${item.variety_name} (${Number(item.kgs_per_bag).toFixed(1)} kg)` : item.variety_name, isPending, parties, varieties)}</td>
                       <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
                       <td style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
@@ -406,7 +406,7 @@ const Stocks = ({ user, showToast }) => {
                         )}
                       </td>
                       <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.variety_name, isPending, parties, varieties)}</td>
+                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.kgs_per_bag ? `${item.variety_name} (${Number(item.kgs_per_bag).toFixed(1)} kg)` : item.variety_name, isPending, parties, varieties)}</td>
                       <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
                       <td style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
                       <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
