@@ -25,14 +25,53 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
 
   return (
     <header className="navbar">
-      <div className="brand">
-        <i className="fas fa-wheat-awn"></i>
-        <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
-          MOTHER INDIA MILL
-        </h1>
+      <div className="nav-top-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div className="brand">
+          <i className="fas fa-wheat-awn"></i>
+          <h1 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
+            MOTHER INDIA MILL
+          </h1>
+        </div>
+
+        <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button className="alert-bell" onClick={onAlertClick} title="Notifications">
+            <i className="fas fa-bell"></i>
+            {localAlertCount > 0 && (
+              <span className="bell-badge">
+                {localAlertCount}
+              </span>
+            )}
+          </button>
+          
+          {user ? (
+            <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontWeight: 600, color: '#ffffff', fontSize: '0.85rem' }}>{user.username}</span>
+              {user.username.toLowerCase() !== user.role.toLowerCase() && (
+                <span className={`role-pill ${user.role === 'OWNER' ? 'role-owner' : 'role-staff'}`}>
+                  {user.role}
+                </span>
+              )}
+              <button 
+                className="btn btn-sm" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDropdownOpen(false);
+                  if (onLogout) onLogout();
+                }} 
+                style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', fontWeight: 'bold', padding: '4px 10px', cursor: 'pointer' }}
+              >
+                <i className="fas fa-right-from-bracket"></i> Logout
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-blue" onClick={onLogin}>
+              <i className="fas fa-right-to-bracket"></i> Login
+            </button>
+          )}
+        </div>
       </div>
       
-      <nav className="nav-links" style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+      <nav className="nav-links" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <button className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
           <i className="fas fa-chart-pie"></i> Dashboard
         </button>
@@ -64,43 +103,6 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
           </button>
         )}
       </nav>
-
-      <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button className="alert-bell" onClick={onAlertClick} title="Notifications">
-          <i className="fas fa-bell"></i>
-          {localAlertCount > 0 && (
-            <span className="bell-badge">
-              {localAlertCount}
-            </span>
-          )}
-        </button>
-        
-        {user ? (
-          <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={{ fontWeight: 600, color: '#ffffff' }}>{user.username}</span>
-            {user.username.toLowerCase() !== user.role.toLowerCase() && (
-              <span className={`role-pill ${user.role === 'OWNER' ? 'role-owner' : 'role-staff'}`}>
-                {user.role}
-              </span>
-            )}
-            <button 
-              className="btn btn-sm" 
-              onClick={(e) => {
-                e.stopPropagation();
-                setDropdownOpen(false);
-                if (onLogout) onLogout();
-              }} 
-              style={{ backgroundColor: '#ef4444', color: '#ffffff', border: 'none', fontWeight: 'bold', padding: '4px 10px', cursor: 'pointer' }}
-            >
-              <i className="fas fa-right-from-bracket"></i> Logout
-            </button>
-          </div>
-        ) : (
-          <button className="btn btn-blue" onClick={onLogin}>
-            <i className="fas fa-right-to-bracket"></i> Login
-          </button>
-        )}
-      </div>
     </header>
   );
 }
