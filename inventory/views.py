@@ -264,14 +264,16 @@ class SystemAlertsAPIView(APIView):
             out_bags = Outward.objects.filter(variety=v).aggregate(Sum('bags'))['bags__sum'] or 0
             curr = in_bags - out_bags
             if curr > 0:
+                age_days = (timezone.now().date() - in_rec.date).days
                 aging_stock_alerts.append({
                     'inward_id': in_rec.id,
                     'invoice_no': in_rec.invoice_no,
                     'date': str(in_rec.date),
+                    'age_days': age_days,
                     'party_name': in_rec.party.name,
                     'variety_name': v.name,
                     'bags': in_rec.bags,
-                    'message': f"AGING ALERT: Batch '{in_rec.invoice_no}' of '{v.name}' purchased on {in_rec.date} has been in stock over 1 year!"
+                    'message': f"AGING ALERT: Batch '{in_rec.invoice_no}' of '{v.name}' (Purchased: {in_rec.date}, Age: {age_days} days) remains unsold over 1 year!"
                 })
 
         return Response({
