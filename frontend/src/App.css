@@ -40,9 +40,8 @@ body {
 .navbar {
   background: linear-gradient(135deg, #1e3a8a 0%, #1e293b 100%) !important;
   border-bottom: 1px solid #1e40af;
-  padding: 0.5rem 1.5rem;
-  min-height: 56px;
-  height: auto;
+  padding: 0 1.5rem;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,9 +73,11 @@ body {
   letter-spacing: 0.5px;
 }
 
-.nav-tabs {
-  display: flex;
-  gap: 0.25rem;
+.nav-links, .nav-tabs {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
 }
 
 .nav-tab {
@@ -763,27 +764,35 @@ th, td {
   .ledger-grid {
     grid-template-columns: 1fr !important;
   }
-  /* Dedicated Mobile Navbar Layout */
+  /* Dedicated Mobile Navbar CSS Grid Layout */
   .navbar {
-    padding: 0.65rem 0.85rem !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important;
+    grid-template-areas: 
+      "brand . right"
+      "links links links" !important;
+    padding: 0.5rem 0.85rem !important;
     height: auto !important;
     min-height: auto !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 0.65rem !important;
+    gap: 0.5rem !important;
   }
-  .nav-top-row {
+  .brand {
+    grid-area: brand;
+  }
+  .nav-right {
+    grid-area: right;
+    justify-self: end;
     display: flex !important;
     align-items: center !important;
-    justify-content: space-between !important;
-    width: 100% !important;
+    gap: 0.5rem !important;
   }
   .nav-links {
+    grid-area: links;
     display: flex !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch !important;
-    padding-bottom: 4px !important;
+    padding-bottom: 2px !important;
     gap: 0.4rem !important;
     width: 100% !important;
   }
