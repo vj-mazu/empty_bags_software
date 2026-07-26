@@ -18,6 +18,7 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
   const [endDate, setEndDate] = useState(initialFilters.end_date || '');
   const [month, setMonth] = useState(initialFilters.month || '');
   const [invoiceNo, setInvoiceNo] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
     fetchDetail();
@@ -50,6 +51,7 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
     setEndDate('');
     setMonth('');
     setInvoiceNo('');
+    setTypeFilter('all');
     setLoading(true);
     getVarietyLedger(varietyId, {}).then(res => {
       setData(res);
@@ -77,6 +79,20 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
 
         {/* Filter Bar Inside Modal */}
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '6px', margin: '0.85rem 0', flexWrap: 'wrap', border: '1px solid #e2e8f0' }}>
+          {/* Type Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
+            <label style={{ fontWeight: 600, color: '#475569' }}>Type:</label>
+            <select 
+              value={typeFilter} 
+              onChange={(e) => setTypeFilter(e.target.value)} 
+              style={{ padding: '0.25rem 0.4rem', fontSize: '0.76rem', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontWeight: 600 }}
+            >
+              <option value="all">All (Inward + Outward)</option>
+              <option value="inward">Inward Only</option>
+              <option value="outward">Outward Only</option>
+            </select>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
             <label style={{ fontWeight: 600, color: '#475569' }}>Invoice No:</label>
             <input 
@@ -131,28 +147,30 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
               {loading ? (
                 <tr><td colSpan="9" style={{ textAlign: 'center', padding: '1.5rem' }}>Loading transaction ledger...</td></tr>
               ) : (
-                data?.transactions?.map((t, idx) => (
-                  <tr key={`${t.type}-${t.id}-${idx}`}>
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge ${t.type === 'inward' ? 'badge-green' : 'badge-red'}`}>
-                        {t.type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 600, color: '#1e293b' }}>{t.invoice_no || '-'}</td>
-                    <td style={{ color: '#64748b' }}>{t.date}</td>
-                    <td style={{ fontWeight: 600, color: '#334155' }}>{t.party_name}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, color: t.type === 'inward' ? '#059669' : '#dc2626' }}>
-                      {t.type === 'inward' ? `+${t.bags}` : `-${t.bags}`}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>₹{t.rate}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb' }}>₹{(t.per_bag_cost || t.rate).toFixed(2)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{formatINR(t.total_value)}</td>
-                  </tr>
-                ))
+                (data?.transactions || [])
+                  .filter(t => typeFilter === 'all' || t.type === typeFilter)
+                  .map((t, idx) => (
+                    <tr key={`${t.type}-${t.id}-${idx}`}>
+                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${t.type === 'inward' ? 'badge-green' : 'badge-red'}`}>
+                          {t.type.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#1e293b' }}>{t.invoice_no || '-'}</td>
+                      <td style={{ color: '#64748b' }}>{t.date}</td>
+                      <td style={{ fontWeight: 600, color: '#334155' }}>{t.party_name}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, color: t.type === 'inward' ? '#059669' : '#dc2626' }}>
+                        {t.type === 'inward' ? `+${t.bags}` : `-${t.bags}`}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>₹{t.rate}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb' }}>₹{(t.per_bag_cost || t.rate).toFixed(2)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{formatINR(t.total_value)}</td>
+                    </tr>
+                  ))
               )}
-              {!loading && (!data?.transactions || data.transactions.length === 0) && (
-                <tr><td colSpan="9" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No itemized transactions found.</td></tr>
+              {!loading && (!data?.transactions || data.transactions.filter(t => typeFilter === 'all' || t.type === typeFilter).length === 0) && (
+                <tr><td colSpan="9" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No itemized transactions found matching filter.</td></tr>
               )}
             </tbody>
           </table>
