@@ -7,7 +7,7 @@ import MasterCreation from './components/MasterCreation';
 import Approvals from './components/Approvals';
 import LoginModal from './components/LoginModal';
 import AlertsModal from './components/AlertsModal';
-import { getVarieties } from './api';
+import { getVarieties, logout as apiLogout } from './api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -73,6 +73,9 @@ export default function App() {
     } catch (e) {
       console.error('Failed to clear user session', e);
     }
+    // Invalidate Django server session and clear auth cookie
+    apiLogout().catch(err => console.warn('Server logout API completed:', err));
+
     if (activeTab === 'approvals') {
       setActiveTab('dashboard');
     }
