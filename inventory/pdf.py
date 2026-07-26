@@ -3,6 +3,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 
+def truncate_clean(text, max_len):
+    s = str(text or '-').strip()
+    if len(s) > max_len:
+        return s[:max_len - 2] + ".."
+    return s
+
 def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None):
     """Draws a single professional invoice slip within designated bounding box."""
     c.saveState()
@@ -211,9 +217,9 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
 
             row_data = [
                 str(idx + 1),
-                str(r.get('invoice_no', '-'))[:15],
-                str(r.get('party_name', '-'))[:22],
-                v_name[:18],
+                truncate_clean(r.get('invoice_no', '-'), 15),
+                truncate_clean(r.get('party_name', '-'), 24),
+                truncate_clean(v_name, 20),
                 str(bags),
                 f"{r.get('rate', 0)}",
                 lf_display,
@@ -347,8 +353,8 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
 
             row_data = [
                 str(idx + 1),
-                v_name[:16],
-                str(r.get('latest_party', '-'))[:15],
+                truncate_clean(v_name, 18),
+                truncate_clean(r.get('latest_party', '-'), 16),
                 str(op),
                 f"Rs.{rate_man:.2f}",
                 f"Rs.{rate_avg:.2f}",
