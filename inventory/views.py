@@ -93,6 +93,14 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         return Response(UserProfileSerializer(profile).data)
 
     def destroy(self, request, *args, **kwargs):
+        if request.user and request.user.is_authenticated:
+            try:
+                requester_profile = UserProfile.objects.get(user=request.user)
+                if requester_profile.role != Role.OWNER:
+                    return Response({'error': 'Only OWNER role can delete user accounts.'}, status=status.HTTP_403_FORBIDDEN)
+            except UserProfile.DoesNotExist:
+                pass
+
         profile = self.get_object()
         inward_cnt = Inward.objects.filter(created_by=profile.user).count()
         outward_cnt = Outward.objects.filter(created_by=profile.user).count()
@@ -106,7 +114,7 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         user = profile.user
         profile.delete()
         user.delete()
-        return Response(status=status.HTTP_24_NO_CONTENT if hasattr(status, 'HTTP_24_NO_CONTENT') else status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class PlaceViewSet(viewsets.ModelViewSet):
     queryset = Place.objects.all()
@@ -238,11 +246,15 @@ class SystemAlertsAPIView(APIView):
         low_stock_alerts = []
         aging_stock_alerts = []
 
+        # Bulk SQL aggregations in 2 single queries
+        in_map = {item['variety_id']: item['tot'] for item in Inward.objects.values('variety_id').annotate(tot=Sum('bags'))}
+        out_map = {item['variety_id']: item['tot'] for item in Outward.objects.values('variety_id').annotate(tot=Sum('bags'))}
+
         # 1. Low Stock Alert (< 2,000 bags)
         varieties = Variety.objects.all()
         for v in varieties:
-            in_bags = Inward.objects.filter(variety=v).aggregate(Sum('bags'))['bags__sum'] or 0
-            out_bags = Outward.objects.filter(variety=v).aggregate(Sum('bags'))['bags__sum'] or 0
+            in_bags = in_map.get(v.id, 0) or 0
+            out_bags = out_map.get(v.id, 0) or 0
             current_bags = in_bags - out_bags
             
             if current_bags < 2000:
@@ -256,13 +268,11 @@ class SystemAlertsAPIView(APIView):
 
         # 2. Aging Stock Alert (> 1 year purchased and unsold/unmoved)
         one_year_ago = timezone.now().date() - timedelta(days=365)
-        old_inwards = Inward.objects.filter(date__lte=one_year_ago)
+        old_inwards = Inward.objects.filter(date__lte=one_year_ago).select_related('party', 'variety')
         
         for in_rec in old_inwards:
-            v = in_rec.variety
-            in_bags = Inward.objects.filter(variety=v).aggregate(Sum('bags'))['bags__sum'] or 0
-            out_bags = Outward.objects.filter(variety=v).aggregate(Sum('bags'))['bags__sum'] or 0
-            curr = in_bags - out_bags
+            v_id = in_rec.variety_id
+            curr = (in_map.get(v_id, 0) or 0) - (out_map.get(v_id, 0) or 0)
             if curr > 0:
                 age_days = (timezone.now().date() - in_rec.date).days
                 aging_stock_alerts.append({
@@ -270,10 +280,10 @@ class SystemAlertsAPIView(APIView):
                     'invoice_no': in_rec.invoice_no,
                     'date': str(in_rec.date),
                     'age_days': age_days,
-                    'party_name': in_rec.party.name,
-                    'variety_name': v.name,
+                    'party_name': in_rec.party.name if in_rec.party else '-',
+                    'variety_name': in_rec.variety.name if in_rec.variety else '-',
                     'bags': in_rec.bags,
-                    'message': f"AGING ALERT: Batch '{in_rec.invoice_no}' of '{v.name}' (Purchased: {in_rec.date}, Age: {age_days} days) remains unsold over 1 year!"
+                    'message': f"AGING ALERT: Batch '{in_rec.invoice_no}' of '{in_rec.variety.name}' (Purchased: {in_rec.date}, Age: {age_days} days) remains unsold over 1 year!"
                 })
 
         return Response({
@@ -330,16 +340,20 @@ class EmptyBagsStockLedgerAPIView(APIView):
             varieties = varieties.filter(id=variety_id)
         varieties_list = list(varieties.order_by('name'))
 
-        # Pre-fetch latest inward & outward parties per variety
+        # Pre-fetch latest inward & outward parties per variety using fast SQL Max(id) aggregations
         latest_in_parties = {}
-        for item in Inward.objects.filter(variety__in=varieties_list).select_related('party').order_by('date', 'id'):
-            if item.party:
-                latest_in_parties[item.variety_id] = item.party.name
+        latest_in_ids = Inward.objects.filter(variety__in=varieties_list).values('variety_id').annotate(max_id=Max('id')).values_list('max_id', flat=True)
+        if latest_in_ids:
+            for item in Inward.objects.filter(id__in=latest_in_ids).select_related('party'):
+                if item.party:
+                    latest_in_parties[item.variety_id] = item.party.name
 
         latest_out_parties = {}
-        for item in Outward.objects.filter(variety__in=varieties_list).select_related('party').order_by('date', 'id'):
-            if item.party:
-                latest_out_parties[item.variety_id] = item.party.name
+        latest_out_ids = Outward.objects.filter(variety__in=varieties_list).values('variety_id').annotate(max_id=Max('id')).values_list('max_id', flat=True)
+        if latest_out_ids:
+            for item in Outward.objects.filter(id__in=latest_out_ids).select_related('party'):
+                if item.party:
+                    latest_out_parties[item.variety_id] = item.party.name
 
         # Calculate opening stock prior to start_date
         in_prior_qs = Inward.objects.all()
@@ -513,8 +527,18 @@ class VarietyDetailLedgerAPIView(APIView):
 
         invoice_no = request.query_params.get('invoice_no')
 
-        inwards = Inward.objects.filter(variety=variety).select_related('party').order_by('date', 'id')
-        outwards = Outward.objects.filter(variety=variety).select_related('party').order_by('date', 'id')
+        inwards = Inward.objects.filter(variety=variety).select_related('party')
+        outwards = Outward.objects.filter(variety=variety).select_related('party')
+
+        if parsed_start:
+            inwards = inwards.filter(date__gte=parsed_start)
+            outwards = outwards.filter(date__gte=parsed_start)
+        if parsed_end:
+            inwards = inwards.filter(date__lte=parsed_end)
+            outwards = outwards.filter(date__lte=parsed_end)
+        if invoice_no:
+            inwards = inwards.filter(invoice_no__icontains=invoice_no.strip())
+            outwards = outwards.filter(invoice_no__icontains=invoice_no.strip())
 
         transactions = []
         for item in inwards:
