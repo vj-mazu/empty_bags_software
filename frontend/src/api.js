@@ -6,6 +6,13 @@ const isLocalhost = typeof window !== 'undefined' && (
 
 const API = import.meta.env.VITE_API_URL || (isLocalhost ? '/api' : 'https://empty-bags-software.onrender.com/api');
 
+// ─── Global session expiry handler ──────────────────────────────────────────
+// Set by App.jsx so it can trigger logout from api.js on 401
+let _onSessionExpired = null;
+export function setSessionExpiredHandler(fn) {
+  _onSessionExpired = fn;
+}
+
 function getCookie(name) {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -41,11 +48,10 @@ export function invalidateCache(prefix) {
   }
 }
 
-// ─── Core API helper (no-cache REMOVED — browser can now cache GETs) ───────
+// ─── Core API helper ────────────────────────────────────────────────────────
 export async function api(path, opts = {}) {
   const url = path.startsWith('http') ? path : `${API}${path.startsWith('/') ? path : '/' + path}`;
   
-  // Performance fix: only add no-cache for POST/PUT/PATCH/DELETE, NOT for GET
   const method = (opts.method || 'GET').toUpperCase();
   const headers = { ...opts.headers };
   
@@ -65,6 +71,14 @@ export async function api(path, opts = {}) {
   if (opts.raw) return res;
   if (res.status === 204) return null;
 
+  // ─── 401/403 DETECTOR: session expired → auto-logout ─────────────────────
+  if (res.status === 401 || res.status === 403) {
+    // Skip if this is the login endpoint itself (expected 401)
+    if (!path.includes('/auth/login/') && _onSessionExpired) {
+      _onSessionExpired();
+    }
+  }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     let errorMsg = data.error || data.detail;
@@ -81,6 +95,16 @@ export async function api(path, opts = {}) {
     throw new Error(errorMsg);
   }
   return data;
+}
+
+// ─── Session validation: check if user is still authenticated on server ─────
+export async function validateSession() {
+  try {
+    const data = await api('/auth/check/');
+    return data && data.authenticated === true;
+  } catch (err) {
+    return false; // session expired or invalid
+  }
 }
 
 // ═══ Auth ═══════════════════════════════════════════════════════════════════

@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     UserProfileViewSet, PlaceViewSet, PartyViewSet, VarietyViewSet,
-    InwardViewSet, OutwardViewSet, LoginAPIView, LogoutAPIView,
+    InwardViewSet, OutwardViewSet, LoginAPIView, LogoutAPIView, AuthCheckAPIView,
     SystemAlertsAPIView, EmptyBagsStockLedgerAPIView, VarietyDetailLedgerAPIView,
     InwardInvoicePDFView, OutwardInvoicePDFView, ApprovalRequestViewSet,
     ExportStocksPDFView, ExportLedgerPDFView, DashboardAPIView, StocksTodayAPIView
@@ -20,6 +20,7 @@ router.register(r'approvals', ApprovalRequestViewSet, basename='approval')
 urlpatterns = [
     path('auth/login/', LoginAPIView.as_view(), name='api-login'),
     path('auth/logout/', LogoutAPIView.as_view(), name='api-logout'),
+    path('auth/check/', AuthCheckAPIView.as_view(), name='api-auth-check'),
     path('dashboard/', DashboardAPIView.as_view(), name='api-dashboard'),
     path('stocks-today/', StocksTodayAPIView.as_view(), name='api-stocks-today'),
     path('alerts/', SystemAlertsAPIView.as_view(), name='api-alerts'),

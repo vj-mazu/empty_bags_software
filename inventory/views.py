@@ -63,6 +63,23 @@ from django.db import models  # needed for output_field
 # AUTH
 # ═════════════════════════════════════════════════════════════════════════════
 
+class AuthCheckAPIView(APIView):
+    """Returns current user info if session is valid, 401 if not."""
+    def get(self, request):
+        if request.user and request.user.is_authenticated:
+            try:
+                profile = UserProfile.objects.get(user=request.user)
+                return Response({
+                    'authenticated': True,
+                    'user_id': request.user.id,
+                    'username': request.user.username,
+                    'role': profile.role,
+                })
+            except UserProfile.DoesNotExist:
+                return Response({'authenticated': True, 'user_id': request.user.id, 'username': request.user.username, 'role': 'STAFF'})
+        return Response({'authenticated': False}, status=status.HTTP_401_UNAUTHORIZED)
+
+
 class LoginAPIView(APIView):
     def post(self, request):
         username = request.data.get('username')

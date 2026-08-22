@@ -180,3 +180,15 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # Performance: Browser caching for static assets (1 year)
 # WhiteNoise serves compressed + cached static files automatically
 WHITENOISE_MAX_AGE = 31536000  # 1 year cache for hashed static files
+
+# ─── Session expiry settings ──────────────────────────────────────────────
+# Session expires after 7 days of inactivity (7 * 24 * 60 * 60)
+SESSION_COOKIE_AGE = 604800
+# Session cookie expires when browser closes (for stricter security)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+# Session expires on server-side after inactivity
+SESSION_SAVE_EVERY_REQUEST = True
+# Security: HttpOnly + Secure cookies in production
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG

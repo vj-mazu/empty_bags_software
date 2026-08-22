@@ -7,7 +7,7 @@ import MasterCreation from './components/MasterCreation';
 import Approvals from './components/Approvals';
 import LoginModal from './components/LoginModal';
 import AlertsModal from './components/AlertsModal';
-import { getVarieties, logout as apiLogout } from './api';
+import { getVarieties, logout as apiLogout, setSessionExpiredHandler, validateSession, invalidateCache } from './api';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -22,6 +22,7 @@ export default function App() {
   });
   const [showLogin, setShowLogin] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   
   // Toast State
   const [toast, setToast] = useState(null);
@@ -30,6 +31,40 @@ export default function App() {
     setToast({ text, type });
     setTimeout(() => setToast(null), duration);
   };
+
+  // ─── Register session expiry handler (called by api.js on 401/403) ──────
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      // Server session expired — force logout on frontend
+      setUser(null);
+      try {
+        localStorage.removeItem('mother_india_user');
+        sessionStorage.clear();
+      } catch (e) {}
+      invalidateCache('');
+      showToast('Session expired. Please login again.', 'error', 5000);
+    });
+    return () => setSessionExpiredHandler(null);
+  }, []);
+
+  // ─── Validate session on app load (detect stale localStorage) ────────────
+  useEffect(() => {
+    if (!user) return;
+    
+    const checkSession = async () => {
+      const isValid = await validateSession();
+      if (!isValid) {
+        // Session expired server-side but localStorage still has old data
+        setUser(null);
+        try {
+          localStorage.removeItem('mother_india_user');
+          sessionStorage.clear();
+        } catch (e) {}
+        showToast('Session expired. Please login again.', 'error', 5000);
+      }
+    };
+    checkSession();
+  }, []); // run once on mount
 
   useEffect(() => {
     const checkLowStock = () => {
@@ -65,16 +100,33 @@ export default function App() {
     showToast(`Logged in successfully as ${userData.username || 'User'}!`);
   };
 
-  const handleLogout = () => {
-    setUser(null);
+  // ─── FIXED: Await API logout BEFORE clearing local state ──────────────────
+  const handleLogout = async () => {
+    if (loggingOut) return; // prevent double-click
+    setLoggingOut(true);
+
     try {
+      // 1. First destroy server session (await it)
+      await apiLogout();
+    } catch (err) {
+      // Even if API fails, proceed with local cleanup
+      console.warn('Server logout API:', err.message);
+    }
+
+    try {
+      // 2. Then clear local state
       localStorage.removeItem('mother_india_user');
       sessionStorage.clear();
     } catch (e) {
       console.error('Failed to clear user session', e);
     }
-    // Invalidate Django server session and clear auth cookie
-    apiLogout().catch(err => console.warn('Server logout API completed:', err));
+
+    // 3. Clear caches
+    invalidateCache('');
+
+    // 4. Set user to null LAST (triggers re-render to login screen)
+    setUser(null);
+    setLoggingOut(false);
 
     if (activeTab === 'approvals') {
       setActiveTab('dashboard');
@@ -125,3 +177,4 @@ export default function App() {
     </div>
   );
 }
+
