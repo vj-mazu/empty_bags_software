@@ -37,6 +37,7 @@ export default function App() {
     setSessionExpiredHandler(() => {
       // Server session expired — force logout on frontend
       setUser(null);
+      setShowLogin(true);  // auto-open login modal
       try {
         localStorage.removeItem('mother_india_user');
         sessionStorage.clear();
@@ -56,6 +57,7 @@ export default function App() {
       if (!isValid) {
         // Session expired server-side but localStorage still has old data
         setUser(null);
+        setShowLogin(true);  // auto-open login modal
         try {
           localStorage.removeItem('mother_india_user');
           sessionStorage.clear();
