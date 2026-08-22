@@ -10,7 +10,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-mother-india-mill-key-key-for-high-performance-mill-app'
 
-DEBUG = True
+# DEBUG: False in production (Render), True only for local dev
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = ['*']
 
@@ -109,7 +110,6 @@ else:
         }
 
 
-
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -142,7 +142,14 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '60/minute',
         'user': '1000/minute',
-    }
+    },
+    # Performance: don't render browsable API in production
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ] if not DEBUG else [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
 }
 
 from corsheaders.defaults import default_headers
@@ -151,26 +158,12 @@ from corsheaders.defaults import default_headers
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
+    'DELETE', 'GET', 'OPTIONS', 'PATCH', 'POST', 'PUT',
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    'cache-control',
-    'expires',
-    'pragma',
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    'cache-control', 'expires', 'pragma', 'accept', 'accept-encoding',
+    'authorization', 'content-type', 'dnt', 'origin', 'user-agent',
+    'x-csrftoken', 'x-requested-with',
 ]
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
@@ -183,3 +176,7 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Performance: Browser caching for static assets (1 year)
+# WhiteNoise serves compressed + cached static files automatically
+WHITENOISE_MAX_AGE = 31536000  # 1 year cache for hashed static files

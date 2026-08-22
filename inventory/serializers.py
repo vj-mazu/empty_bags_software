@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import UserProfile, Place, Party, Variety, Inward, Outward, DailyStockSummary, Role
-from django.db.models import Sum
+from django.db.models import Sum, Count, Q
+
 
 class UserProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username')
@@ -14,9 +15,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = ['id', 'user_id', 'username', 'email', 'role', 'can_delete']
 
     def get_can_delete(self, obj):
+        # Use prefetched counts if available (set by view), otherwise single query
+        if hasattr(obj, '_inward_count') and hasattr(obj, '_outward_count'):
+            return (obj._inward_count + obj._outward_count) == 0
         inward_cnt = Inward.objects.filter(created_by=obj.user).count()
         outward_cnt = Outward.objects.filter(created_by=obj.user).count()
         return (inward_cnt + outward_cnt) == 0
+
 
 class PlaceSerializer(serializers.ModelSerializer):
     can_delete = serializers.SerializerMethodField()
@@ -26,7 +31,10 @@ class PlaceSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'created_at', 'can_delete']
 
     def get_can_delete(self, obj):
+        if hasattr(obj, '_party_count'):
+            return obj._party_count == 0
         return obj.parties.count() == 0
+
 
 class PartySerializer(serializers.ModelSerializer):
     place_name = serializers.ReadOnlyField(source='place.name')
@@ -37,7 +45,10 @@ class PartySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'shortcut_name', 'phone_number', 'place', 'place_name', 'created_at', 'can_delete']
 
     def get_can_delete(self, obj):
+        if hasattr(obj, '_inward_count') and hasattr(obj, '_outward_count'):
+            return (obj._inward_count + obj._outward_count) == 0
         return (obj.inwards.count() + obj.outwards.count()) == 0
+
 
 class VarietySerializer(serializers.ModelSerializer):
     current_stock_bags = serializers.SerializerMethodField()
@@ -49,6 +60,9 @@ class VarietySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'photo', 'kgs_per_bag', 'created_at', 'current_stock_bags', 'current_stock_kgs', 'can_delete']
 
     def get_current_stock_bags(self, obj):
+        # Use prefetched annotation if available (set by view), otherwise single query
+        if hasattr(obj, '_in_bags') and hasattr(obj, '_out_bags'):
+            return (obj._in_bags or 0) - (obj._out_bags or 0)
         in_bags = Inward.objects.filter(variety=obj).aggregate(Sum('bags'))['bags__sum'] or 0
         out_bags = Outward.objects.filter(variety=obj).aggregate(Sum('bags'))['bags__sum'] or 0
         return in_bags - out_bags
@@ -58,7 +72,10 @@ class VarietySerializer(serializers.ModelSerializer):
         return float(stock_bags) * float(obj.kgs_per_bag)
 
     def get_can_delete(self, obj):
+        if hasattr(obj, '_inward_count') and hasattr(obj, '_outward_count'):
+            return (obj._inward_count + obj._outward_count) == 0
         return (obj.inwards.count() + obj.outwards.count()) == 0
+
 
 class InwardSerializer(serializers.ModelSerializer):
     party_name = serializers.ReadOnlyField(source='party.name')
@@ -73,6 +90,7 @@ class InwardSerializer(serializers.ModelSerializer):
             'variety', 'variety_name', 'kgs_per_bag', 'rate', 'bags', 
             'total_kgs', 'lf_toggle', 'lf_amount', 'total_value', 'per_bag_cost', 'created_by', 'created_by_name', 'created_at'
         ]
+
 
 class OutwardSerializer(serializers.ModelSerializer):
     party_name = serializers.ReadOnlyField(source='party.name')
@@ -104,6 +122,7 @@ class OutwardSerializer(serializers.ModelSerializer):
             })
         return data
 
+
 class DailyStockSummarySerializer(serializers.ModelSerializer):
     variety_name = serializers.ReadOnlyField(source='variety.name')
 
@@ -114,6 +133,7 @@ class DailyStockSummarySerializer(serializers.ModelSerializer):
             'opening_bags', 'inward_bags', 'outward_bags', 'closing_bags',
             'opening_kgs', 'inward_kgs', 'outward_kgs', 'closing_kgs'
         ]
+
 
 from .models import ApprovalRequest, Inward, Outward
 

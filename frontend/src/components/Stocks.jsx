@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getVarieties, getParties, getInwards, getOutwards, downloadPdf, downloadStocksPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals } from '../api';
+import { getStocksToday, downloadPdf, downloadStocksPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals, invalidateCache } from '../api';
 import InwardModal from './InwardModal';
 import OutwardModal from './OutwardModal';
-
 import CustomConfirmModal from './CustomConfirmModal';
 
 const formatINR = (val) => {
@@ -32,7 +31,6 @@ const renderProposedChange = (item, fieldName, originalVal, isPending, parties, 
     return originalVal;
   }
 
-  // Smart value comparison to check if the field actually changed
   let isDifferent = false;
   if (fieldName === 'party' || fieldName === 'variety') {
     const currentId = item[fieldName] ? String(item[fieldName].id || item[fieldName]) : '';
@@ -143,31 +141,9 @@ const Stocks = ({ user, showToast }) => {
     fetchData();
   }, [filterDate]);
 
+  // 🚀 Performance: single API call replaces 5 separate calls
   const fetchData = async () => {
     try {
-      const [vRes, pRes, inRes, outRes, appRes] = await Promise.all([
-        getVarieties().catch(() => []),
-        getParties().catch(() => []),
-        getInwards({ all: 'true' }).catch(() => []),
-        getOutwards({ all: 'true' }).catch(() => []),
-        getApprovals().catch(() => [])
-      ]);
-
-      setVarieties(vRes.results || vRes.data || (Array.isArray(vRes) ? vRes : []));
-      setParties(pRes.results || pRes.data || (Array.isArray(pRes) ? pRes : []));
-      
-      const inRows = Array.isArray(inRes) ? inRes : (inRes.results || inRes.data || []);
-      const outRows = Array.isArray(outRes) ? outRes : (outRes.results || outRes.data || []);
-
-      let pMap = {};
-      const approvalsList = Array.isArray(appRes) ? appRes : (appRes.results || appRes.data || []);
-      approvalsList.forEach(a => {
-        if (a.status === 'PENDING') {
-          pMap[`${a.target_model}_${a.target_id}`] = a;
-        }
-      });
-      setPendingMap(pMap);
-      
       const getBusinessTodayStr = () => {
         const now = new Date();
         const hours = now.getHours();
@@ -188,36 +164,24 @@ const Stocks = ({ user, showToast }) => {
       const activeDate = filterDate || todayStr;
       setBusinessDate(activeDate);
 
-      let openingIn = 0, openingOut = 0;
-      let todayIn = 0, todayOut = 0;
-
-      inRows.forEach(item => {
-        if (item.date < activeDate) openingIn += Number(item.bags || 0);
-        else if (item.date === activeDate) todayIn += Number(item.bags || 0);
-      });
-
-      outRows.forEach(item => {
-        if (item.date < activeDate) openingOut += Number(item.bags || 0);
-        else if (item.date === activeDate) todayOut += Number(item.bags || 0);
-      });
-
-      const op = openingIn - openingOut;
-      const cl = op + todayIn - todayOut;
-
-      setOpeningStock(op);
-      setClosingStock(cl);
-
-      const todayInRows = inRows.filter(item => item.date === activeDate).sort((a, b) => (a.sl_no || 0) - (b.sl_no || 0));
-      const todayOutRows = outRows.filter(item => item.date === activeDate).sort((a, b) => (a.sl_no || 0) - (b.sl_no || 0));
-
-      setInwards(todayInRows);
-      setOutwards(todayOutRows);
+      // 🚀 ONE API call instead of 5 (varieties + parties + inwards + outwards + approvals)
+      const data = await getStocksToday(filterDate || undefined);
+      
+      setVarieties(data.varieties || []);
+      setParties(data.parties || []);
+      setInwards(data.inwards || []);
+      setOutwards(data.outwards || []);
+      setOpeningStock(data.opening || 0);
+      setClosingStock(data.closing || 0);
+      setPendingMap(data.pending || {});
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleSaved = () => {
+    // Invalidate cache so next load gets fresh data
+    invalidateCache('stocks-today');
     fetchData();
   };
 
@@ -230,7 +194,7 @@ const Stocks = ({ user, showToast }) => {
       } else {
         alert('Error downloading PDF: ' + err.message);
       }
-    }
+    };
   };
 
   const filteredVarieties = Array.isArray(varieties) ? varieties.filter(v => 

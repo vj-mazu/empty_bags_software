@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getVarieties, getInwards, getOutwards } from '../api';
+import { getDashboard } from '../api';
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -15,57 +15,14 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [varietiesData, inData, outData] = await Promise.all([
-          getVarieties(),
-          getInwards({ all: 'true' }),
-          getOutwards({ all: 'true' })
-        ]);
+        const data = await getDashboard();
         
-        const inwards = inData || [];
-        const outwards = outData || [];
-
-        const getBusinessTodayStr = () => {
-          const now = new Date();
-          const hours = now.getHours();
-          const formatLocal = (d) => {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const r = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${r}`;
-          };
-          if (hours < 6) {
-            const yesterday = new Date(now);
-            yesterday.setDate(now.getDate() - 1);
-            return formatLocal(yesterday);
-          }
-          return formatLocal(now);
-        };
-        const today = getBusinessTodayStr();
-        setBusinessDate(today);
-        
-        let openingIn = 0;
-        let openingOut = 0;
-        let todayIn = 0;
-        let todayOut = 0;
-
-        inwards.forEach(item => {
-          if (item.date < today) openingIn += Number(item.bags || 0);
-          else if (item.date === today) todayIn += Number(item.bags || 0);
-        });
-
-        outwards.forEach(item => {
-          if (item.date < today) openingOut += Number(item.bags || 0);
-          else if (item.date === today) todayOut += Number(item.bags || 0);
-        });
-
-        const opening = openingIn - openingOut;
-        const closing = opening + todayIn - todayOut;
-
+        setBusinessDate(data.business_date || '');
         setStats({
-          opening,
-          todayInward: todayIn,
-          todayOutward: todayOut,
-          closing
+          opening: data.opening || 0,
+          todayInward: data.today_inward || 0,
+          todayOutward: data.today_outward || 0,
+          closing: data.closing || 0
         });
       } catch (err) {
         console.error("Error fetching dashboard data", err);

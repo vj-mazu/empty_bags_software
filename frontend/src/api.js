@@ -21,16 +21,34 @@ function getCookie(name) {
   return cookieValue;
 }
 
+// ─── Client-side TTL cache (reduces redundant API calls) ───────────────────
+const _cache = new Map();
+function cachedFetch(key, fn, ttlMs = 60000) {
+  const now = Date.now();
+  const cached = _cache.get(key);
+  if (cached && now - cached.ts < ttlMs) {
+    return Promise.resolve(cached.data);
+  }
+  return fn().then(data => {
+    _cache.set(key, { data, ts: now });
+    return data;
+  });
+}
+
+export function invalidateCache(prefix) {
+  for (const key of _cache.keys()) {
+    if (key.startsWith(prefix)) _cache.delete(key);
+  }
+}
+
+// ─── Core API helper (no-cache REMOVED — browser can now cache GETs) ───────
 export async function api(path, opts = {}) {
   const url = path.startsWith('http') ? path : `${API}${path.startsWith('/') ? path : '/' + path}`;
-  const headers = { 
-    'Cache-Control': 'no-cache',
-    'Pragma': 'no-cache',
-    'Expires': '0',
-    ...opts.headers 
-  };
-
+  
+  // Performance fix: only add no-cache for POST/PUT/PATCH/DELETE, NOT for GET
   const method = (opts.method || 'GET').toUpperCase();
+  const headers = { ...opts.headers };
+  
   if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)) {
     const csrftoken = getCookie('csrftoken');
     if (csrftoken) {
@@ -65,6 +83,8 @@ export async function api(path, opts = {}) {
   return data;
 }
 
+// ═══ Auth ═══════════════════════════════════════════════════════════════════
+
 export const login = (u, p) => {
   let username = u;
   let password = p;
@@ -72,6 +92,7 @@ export const login = (u, p) => {
     username = u.username;
     password = u.password;
   }
+  invalidateCache('');  // clear all caches on login
   return api('/auth/login/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -79,36 +100,34 @@ export const login = (u, p) => {
   });
 };
 
-export const logout = () =>
-  api('/auth/logout/', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+export const logout = () => {
+  invalidateCache('');
+  return api('/auth/logout/', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+};
 
-export const getUsers = () => api('/users/');
-export const createUser = (d) =>
-  api('/users/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const updateUser = (id, d) =>
-  api(`/users/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const deleteUser = (id) => api(`/users/${id}/`, { method: 'DELETE' });
+// ═══ Masters (small tables, 5-min cache) ═══════════════════════════════════
 
-export const getPlaces = () => api('/places/');
-export const createPlace = (d) =>
-  api('/places/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const updatePlace = (id, d) =>
-  api(`/places/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const deletePlace = (id) => api(`/places/${id}/`, { method: 'DELETE' });
+export const getUsers = () => cachedFetch('users', () => api('/users/'), 300000);
+export const createUser = (d) => { invalidateCache('users'); return api('/users/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateUser = (id, d) => { invalidateCache('users'); return api(`/users/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteUser = (id) => { invalidateCache('users'); return api(`/users/${id}/`, { method: 'DELETE' }); };
 
-export const getParties = () => api('/parties/');
-export const createParty = (d) =>
-  api('/parties/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const updateParty = (id, d) =>
-  api(`/parties/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const deleteParty = (id) => api(`/parties/${id}/`, { method: 'DELETE' });
+export const getPlaces = () => cachedFetch('places', () => api('/places/'), 300000);
+export const createPlace = (d) => { invalidateCache('places'); return api('/places/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updatePlace = (id, d) => { invalidateCache('places'); return api(`/places/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deletePlace = (id) => { invalidateCache('places'); return api(`/places/${id}/`, { method: 'DELETE' }); };
 
-export const getVarieties = () => api('/varieties/');
-export const createVariety = (formData) =>
-  api('/varieties/', { method: 'POST', body: formData });
-export const updateVariety = (id, formData) =>
-  api(`/varieties/${id}/`, { method: 'PATCH', body: formData });
-export const deleteVariety = (id) => api(`/varieties/${id}/`, { method: 'DELETE' });
+export const getParties = () => cachedFetch('parties', () => api('/parties/'), 300000);
+export const createParty = (d) => { invalidateCache('parties'); return api('/parties/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateParty = (id, d) => { invalidateCache('parties'); return api(`/parties/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteParty = (id) => { invalidateCache('parties'); return api(`/parties/${id}/`, { method: 'DELETE' }); };
+
+export const getVarieties = () => cachedFetch('varieties', () => api('/varieties/'), 120000);  // 2 min cache
+export const createVariety = (formData) => { invalidateCache('varieties'); return api('/varieties/', { method: 'POST', body: formData }); };
+export const updateVariety = (id, formData) => { invalidateCache('varieties'); return api(`/varieties/${id}/`, { method: 'PATCH', body: formData }); };
+export const deleteVariety = (id) => { invalidateCache('varieties'); return api(`/varieties/${id}/`, { method: 'DELETE' }); };
+
+// ═══ Inward / Outward ═══════════════════════════════════════════════════════
 
 export const getInwards = (params) => {
   if (typeof params === 'string') return api(params);
@@ -117,12 +136,9 @@ export const getInwards = (params) => {
   if (params?.date) q.set('date', params.date);
   return api(`/inward/?${q.toString()}`);
 };
-export const createInward = (d) =>
-  api('/inward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const updateInward = (id, d) =>
-  api(`/inward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const deleteInward = (id) =>
-  api(`/inward/${id}/`, { method: 'DELETE' });
+export const createInward = (d) => { invalidateCache('inward'); invalidateCache('dashboard'); return api('/inward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateInward = (id, d) => { invalidateCache('inward'); invalidateCache('dashboard'); return api(`/inward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteInward = (id) => { invalidateCache('inward'); invalidateCache('dashboard'); return api(`/inward/${id}/`, { method: 'DELETE' }); };
 
 export const getOutwards = (params) => {
   if (typeof params === 'string') return api(params);
@@ -131,14 +147,26 @@ export const getOutwards = (params) => {
   if (params?.date) q.set('date', params.date);
   return api(`/outward/?${q.toString()}`);
 };
-export const createOutward = (d) =>
-  api('/outward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const updateOutward = (id, d) =>
-  api(`/outward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const deleteOutward = (id) =>
-  api(`/outward/${id}/`, { method: 'DELETE' });
+export const createOutward = (d) => { invalidateCache('outward'); invalidateCache('dashboard'); return api('/outward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateOutward = (id, d) => { invalidateCache('outward'); invalidateCache('dashboard'); return api(`/outward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteOutward = (id) => { invalidateCache('outward'); invalidateCache('dashboard'); return api(`/outward/${id}/`, { method: 'DELETE' }); };
+
+// ═══ New: Dashboard API (pre-aggregated, 30-sec cache) ═══════════════════════
+
+export const getDashboard = () => cachedFetch('dashboard-stats', () => api('/dashboard/'), 30000);
+
+// ═══ New: Stocks Today API (all data in 1 call, replaces ?all=true) ════════
+
+export const getStocksToday = (date) => {
+  const q = date ? `?date=${date}` : '';
+  return cachedFetch(`stocks-today-${date || 'default'}`, () => api(`/stocks-today/${q}`), 15000);  // 15-sec cache
+};
+
+// ═══ Alerts ═════════════════════════════════════════════════════════════════
 
 export const getAlerts = () => api('/alerts/');
+
+// ═══ Ledger ═════════════════════════════════════════════════════════════════
 
 export const getLedger = (params = {}) => {
   const q = new URLSearchParams();
@@ -161,6 +189,8 @@ export const getVarietyLedger = (varietyId, params = {}) => {
   return api(`/variety-ledger/${varietyId}/?${q.toString()}`);
 };
 
+// ═══ PDF Downloads ══════════════════════════════════════════════════════════
+
 export const downloadPdf = (type, id) => {
   window.open(`${API}/${type}/${id}/pdf/`, '_blank');
 };
@@ -180,10 +210,9 @@ export const downloadLedgerPdf = (params = {}) => {
   window.open(`${API}/ledger/export-pdf/?${q.toString()}`, '_blank');
 };
 
+// ═══ Approvals ══════════════════════════════════════════════════════════════
+
 export const getApprovals = () => api('/approvals/');
-export const createApprovalRequest = (d) =>
-  api('/approvals/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-export const approveRequest = (id) =>
-  api(`/approvals/${id}/approve/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-export const rejectRequest = (id) =>
-  api(`/approvals/${id}/reject/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+export const createApprovalRequest = (d) => { invalidateCache('approvals'); return api('/approvals/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const approveRequest = (id) => { invalidateCache('approvals'); return api(`/approvals/${id}/approve/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }); };
+export const rejectRequest = (id) => { invalidateCache('approvals'); return api(`/approvals/${id}/reject/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }); };

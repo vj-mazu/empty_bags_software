@@ -78,6 +78,8 @@ class Inward(models.Model):
             models.Index(fields=['variety', '-date', '-id']),
             models.Index(fields=['party', '-date']),
             models.Index(fields=['-date']),
+            models.Index(fields=['date', 'variety']),
+            models.Index(fields=['created_by']),
         ]
 
     def save(self, *args, **kwargs):
@@ -126,6 +128,8 @@ class Outward(models.Model):
             models.Index(fields=['variety', '-date', '-id']),
             models.Index(fields=['party', '-date']),
             models.Index(fields=['-date']),
+            models.Index(fields=['date', 'variety']),
+            models.Index(fields=['created_by']),
         ]
 
     def save(self, *args, **kwargs):

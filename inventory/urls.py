@@ -5,7 +5,7 @@ from .views import (
     InwardViewSet, OutwardViewSet, LoginAPIView, LogoutAPIView,
     SystemAlertsAPIView, EmptyBagsStockLedgerAPIView, VarietyDetailLedgerAPIView,
     InwardInvoicePDFView, OutwardInvoicePDFView, ApprovalRequestViewSet,
-    ExportStocksPDFView, ExportLedgerPDFView
+    ExportStocksPDFView, ExportLedgerPDFView, DashboardAPIView, StocksTodayAPIView
 )
 
 router = DefaultRouter()
@@ -20,6 +20,8 @@ router.register(r'approvals', ApprovalRequestViewSet, basename='approval')
 urlpatterns = [
     path('auth/login/', LoginAPIView.as_view(), name='api-login'),
     path('auth/logout/', LogoutAPIView.as_view(), name='api-logout'),
+    path('dashboard/', DashboardAPIView.as_view(), name='api-dashboard'),
+    path('stocks-today/', StocksTodayAPIView.as_view(), name='api-stocks-today'),
     path('alerts/', SystemAlertsAPIView.as_view(), name='api-alerts'),
     path('empty-bags-ledger/', EmptyBagsStockLedgerAPIView.as_view(), name='api-empty-bags-ledger'),
     path('variety-ledger/<int:variety_id>/', VarietyDetailLedgerAPIView.as_view(), name='api-variety-ledger'),
