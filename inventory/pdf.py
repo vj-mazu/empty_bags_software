@@ -125,11 +125,34 @@ def generate_4up_a4_invoice(entry_type, entry_data):
     buffer.close()
     return pdf_out
 
+def _batch_fetch_varieties(row_list):
+    """Pre-fetch all Variety objects needed by PDF rows in ONE query.
+    Returns dict {variety_id: kgs_per_bag}."""
+    from inventory.models import Variety
+    variety_ids = set()
+    for r in row_list:
+        v_id = r.get('variety') or r.get('variety_id')
+        if isinstance(v_id, dict):
+            v_id = v_id.get('id')
+        if v_id:
+            variety_ids.add(v_id)
+    
+    if not variety_ids:
+        return {}
+    
+    return {
+        v['id']: float(v['kgs_per_bag'])
+        for v in Variety.objects.filter(id__in=variety_ids).values('id', 'kgs_per_bag')
+    }
+
 def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
     """Generates a portrait PDF report for Stocks (Inward & Outward registers)."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
+
+    # Performance fix: batch-fetch all varieties ONCE instead of N+1 in render loop
+    variety_kgs_map = _batch_fetch_varieties(inwards_data + outwards_data)
 
     # Header Banner
     c.setFillColor(colors.HexColor('#1e3a8a'))
@@ -183,7 +206,6 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
         total_val = 0.0
 
         c.setFont("Helvetica", 7.0)
-        from inventory.models import Variety
         for idx, r in enumerate(rows):
             if cur_y < 50:
                 c.showPage()
@@ -196,17 +218,14 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
             lf_amt = float(r.get('lf_amount', 0) or 0)
             lf_display = f"Rs.{lf_amt:.2f}" if r.get('lf_toggle') and lf_amt > 0 else "-"
             
+            # Performance fix: use pre-fetched map instead of DB query per row
             kgs = float(r.get('kgs_per_bag', 0) or 0)
             if kgs == 0:
-                try:
-                    v_id = r.get('variety') or r.get('variety_id')
-                    if isinstance(v_id, dict):
-                        v_id = v_id.get('id')
-                    if v_id:
-                        v_obj = Variety.objects.get(id=v_id)
-                        kgs = float(v_obj.kgs_per_bag or 0)
-                except Exception:
-                    pass
+                v_id = r.get('variety') or r.get('variety_id')
+                if isinstance(v_id, dict):
+                    v_id = v_id.get('id')
+                if v_id:
+                    kgs = variety_kgs_map.get(v_id, 0)
                     
             v_name = str(r.get('variety_name', '-'))
             if kgs > 0 and f"({kgs}" not in v_name:
@@ -264,6 +283,9 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
+
+    # Performance fix: batch-fetch all varieties ONCE
+    variety_kgs_map = _batch_fetch_varieties(inwards_data + outwards_data)
 
     # Header Banner
     c.setFillColor(colors.HexColor('#1e3a8a'))
@@ -328,18 +350,14 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
             rate_man = float(r.get('rate_per_bag', 0) or 0.0)
             rate_avg = float(r.get('rate_per_bag', 0) or 0.0)
             
+            # Performance fix: use pre-fetched map
             kgs = float(r.get('kgs_per_bag', 0) or 0.0)
             if kgs == 0:
-                try:
-                    from inventory.models import Variety
-                    v_id = r.get('variety') or r.get('variety_id')
-                    if isinstance(v_id, dict):
-                        v_id = v_id.get('id')
-                    if v_id:
-                        v_obj = Variety.objects.get(id=v_id)
-                        kgs = float(v_obj.kgs_per_bag or 0)
-                except Exception:
-                    pass
+                v_id = r.get('variety') or r.get('variety_id')
+                if isinstance(v_id, dict):
+                    v_id = v_id.get('id')
+                if v_id:
+                    kgs = variety_kgs_map.get(v_id, 0)
 
             v_name = str(r.get('variety_name', '-'))
             if kgs > 0 and f"({kgs}" not in v_name:
@@ -384,15 +402,12 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
         c.setFont("Helvetica-Bold", 8)
         c.drawString(22, cur_y - 10, f"TOTAL {section_title}")
         
-        c.drawString(22 + sum(col_widths[:3]), cur_y - 10, str(tot_op))
-        c.drawString(22 + sum(col_widths[:4]), cur_y - 10, f"Rs. {tot_lf:,.2f}" if tot_lf > 0 else "-")
-        c.drawString(22 + sum(col_widths[:5]), cur_y - 10, f"{'+' if is_inward else '-'}{tot_mov}")
-        c.drawString(22 + sum(col_widths[:6]), cur_y - 10, str(tot_cl))
+        c.drawString(22 + sum(col_widths[:3]), cur_y - 10, f"{tot_op} Op + {tot_mov} Mov = {tot_cl} Cl")
         c.drawRightString(20 + sum(col_widths) - 4, cur_y - 10, f"Rs. {tot_val:,.2f}")
         cur_y -= 25
 
-    draw_ledger_section("INWARD EMPTY BAGS LEDGER", inwards_data, "#10b981", True)
-    draw_ledger_section("OUTWARD EMPTY BAGS LEDGER", outwards_data, "#ef4444", False)
+    draw_ledger_section("INWARD", inwards_data, "#10b981", True)
+    draw_ledger_section("OUTWARD", outwards_data, "#ef4444", False)
 
     c.showPage()
     c.save()

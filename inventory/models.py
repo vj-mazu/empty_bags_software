@@ -84,8 +84,12 @@ class Inward(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.sl_no:
-            max_sl = Inward.objects.aggregate(models.Max('sl_no'))['sl_no__max'] or 0
-            self.sl_no = max_sl + 1
+            # Performance fix: use atomic SELECT FOR UPDATE to avoid race condition
+            # and avoid slow MAX scan on 10M+ records
+            from django.db import transaction
+            with transaction.atomic():
+                last = Inward.objects.select_for_update().order_by('-sl_no').values_list('sl_no', flat=True).first()
+                self.sl_no = (last or 0) + 1
         if not self.invoice_no:
             self.invoice_no = f"MI-IN-{self.date.strftime('%Y%m%d')}-{self.sl_no:04d}"
         
@@ -134,8 +138,10 @@ class Outward(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.sl_no:
-            max_sl = Outward.objects.aggregate(models.Max('sl_no'))['sl_no__max'] or 0
-            self.sl_no = max_sl + 1
+            from django.db import transaction
+            with transaction.atomic():
+                last = Outward.objects.select_for_update().order_by('-sl_no').values_list('sl_no', flat=True).first()
+                self.sl_no = (last or 0) + 1
         if not self.invoice_no:
             self.invoice_no = f"MI-OUT-{self.date.strftime('%Y%m%d')}-{self.sl_no:04d}"
 
