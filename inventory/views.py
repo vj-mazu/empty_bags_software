@@ -113,8 +113,13 @@ class LoginAPIView(APIView):
 
 class LogoutAPIView(APIView):
     def post(self, request):
+        if hasattr(request, 'session'):
+            request.session.flush()
         logout(request)
-        return Response({'message': 'Logged out successfully'})
+        response = Response({'message': 'Logged out successfully'})
+        response.delete_cookie('sessionid')
+        response.delete_cookie('csrftoken')
+        return response
 
 
 # ═════════════════════════════════════════════════════════════════════════════
