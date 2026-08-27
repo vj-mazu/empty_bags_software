@@ -118,7 +118,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
 
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: '640px' }}>
+      <div className="modal">
         <div className="modal-hdr">
           <div className="modal-title" style={{ color: '#2563eb' }}>
             <i className="fas fa-minus-circle"></i> {editItem ? 'Edit Outward Entry' : 'New Outward Entry'}
@@ -250,7 +250,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
             </div>
 
             {isTransfer && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: '#eff6ff', padding: '0.85rem', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: lfOn ? '0.85rem' : 0 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.85rem', background: '#eff6ff', padding: '0.85rem', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: lfOn ? '0.85rem' : 0 }}>
                 <div className="form-group">
                   <label style={{ color: '#1e40af', fontWeight: 700 }}>From Location</label>
                   <input 
@@ -297,12 +297,12 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.85rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', minWidth: 0 }}>
               <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>COST PER BAG</span>
               <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{formatINR(perBagCostVal)}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', minWidth: 0 }}>
               <span style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 700 }}>GRAND TOTAL</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1d4ed8' }}>{formatINR(netTotalVal)}</span>
             </div>

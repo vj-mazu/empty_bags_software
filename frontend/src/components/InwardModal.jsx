@@ -103,7 +103,7 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
 
   return (
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: '640px' }}>
+      <div className="modal">
         <div className="modal-hdr">
           <div className="modal-title" style={{ color: '#10b981' }}>
             <i className="fas fa-plus-circle"></i> {editItem ? 'Edit Inward Entry' : 'New Inward Entry'}
@@ -239,12 +239,12 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.85rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', minWidth: 0 }}>
               <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700 }}>COST PER BAG</span>
               <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{formatINR(perBagCostVal)}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', padding: '0.65rem 0.85rem', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0', minWidth: 0 }}>
               <span style={{ fontSize: '0.72rem', color: '#065f46', fontWeight: 700 }}>GRAND TOTAL</span>
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#059669' }}>{formatINR(netTotalVal)}</span>
             </div>
