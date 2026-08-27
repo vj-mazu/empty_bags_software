@@ -21,7 +21,6 @@ export default function App() {
       return null;
     }
   });
-  const [showLogin, setShowLogin] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   
@@ -36,9 +35,7 @@ export default function App() {
   // ─── Register session expiry handler (called by api.js on 401/403) ──────
   useEffect(() => {
     setSessionExpiredHandler(() => {
-      // Server session expired — force logout on frontend
       setUser(null);
-      setShowLogin(true);  // auto-open login modal
       try {
         localStorage.removeItem('mother_india_user');
         sessionStorage.clear();
@@ -56,9 +53,7 @@ export default function App() {
     const checkSession = async () => {
       const isValid = await validateSession();
       if (!isValid) {
-        // Session expired server-side but localStorage still has old data
         setUser(null);
-        setShowLogin(true);  // auto-open login modal
         try {
           localStorage.removeItem('mother_india_user');
           sessionStorage.clear();
@@ -67,9 +62,10 @@ export default function App() {
       }
     };
     checkSession();
-  }, []); // run once on mount
+  }, []);
 
   useEffect(() => {
+    if (!user) return;
     const checkLowStock = () => {
       getVarieties().then(res => {
         const list = res.results || res.data || res;
@@ -84,14 +80,13 @@ export default function App() {
       }).catch(console.error);
     };
 
-    // Delay checking slightly on initial load so login redirect/dashboard toasts can clear
     const timer = setTimeout(checkLowStock, 2000);
     const interval = setInterval(checkLowStock, 3600000); // 1 hour
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, []);
+  }, [user]);
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -100,40 +95,30 @@ export default function App() {
     } catch (e) {
       console.error('Failed to save user session', e);
     }
-    showToast(`Logged in successfully as ${userData.username || 'User'}!`);
+    showToast(`Welcome back, ${userData.username || 'User'}!`);
   };
 
-  // ─── FIXED: Await API logout BEFORE clearing local state ──────────────────
   const handleLogout = async () => {
-    if (loggingOut) return; // prevent double-click
+    if (loggingOut) return;
     setLoggingOut(true);
 
     try {
-      // 1. First destroy server session (await it)
       await apiLogout();
     } catch (err) {
-      // Even if API fails, proceed with local cleanup
       console.warn('Server logout API:', err.message);
     }
 
     try {
-      // 2. Then clear local state
       localStorage.removeItem('mother_india_user');
       sessionStorage.clear();
     } catch (e) {
       console.error('Failed to clear user session', e);
     }
 
-    // 3. Clear caches
     invalidateCache('');
-
-    // 4. Set user to null LAST (triggers re-render to login screen)
     setUser(null);
     setLoggingOut(false);
-
-    if (activeTab === 'approvals') {
-      setActiveTab('dashboard');
-    }
+    setActiveTab('dashboard');
     showToast('Logged out successfully!');
   };
 
@@ -141,6 +126,23 @@ export default function App() {
     setActiveTab('masters');
     setMasterSubSection(section);
   };
+
+  // ─── If not logged in, render dedicated secure Full-Page Login Screen ────
+  if (!user) {
+    return (
+      <div className="login-fullpage-container">
+        <LoginModal onLogin={handleLogin} isFullPage={true} />
+        {toast && (
+          <div className="toast-container">
+            <div className={`toast ${toast.type === 'error' ? 'error' : ''}`}>
+              <i className={toast.type === 'error' ? "fas fa-circle-xmark" : "fas fa-circle-check"}></i>
+              {toast.text}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -152,7 +154,6 @@ export default function App() {
         }}
         onSelectMaster={handleSelectMaster}
         user={user} 
-        onLogin={() => setShowLogin(true)} 
         onLogout={handleLogout} 
         onAlertClick={() => setShowAlerts(true)} 
       />
@@ -166,7 +167,6 @@ export default function App() {
         {activeTab === 'approvals' && <Approvals showToast={showToast} />}
       </main>
 
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} showToast={showToast} />}
       {showAlerts && <AlertsModal onClose={() => setShowAlerts(false)} />}
 
       {/* Floating Toast Notification */}
@@ -181,4 +181,3 @@ export default function App() {
     </div>
   );
 }
-
