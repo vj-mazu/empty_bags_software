@@ -177,7 +177,7 @@ def _batch_fetch_varieties(row_list):
     }
 
 def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
-    """Generates a portrait PDF report for Stocks with zero text overlap and multi-page header support."""
+    """Generates a portrait PDF report for Stocks with zero text overlap and aligned columns."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
@@ -189,15 +189,15 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
         c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(20, page_h - 28, "MOTHER INDIA MILL")
+        c.drawString(15, page_h - 28, "MOTHER INDIA MILL")
         c.setFont("Helvetica-Bold", 10)
-        c.drawRightString(page_w - 20, page_h - 28, title.upper())
+        c.drawRightString(page_w - 15, page_h - 28, title.upper())
 
         c.setFillColor(colors.HexColor('#475569'))
         c.setFont("Helvetica", 9)
-        c.drawString(20, page_h - 58, f"Report Period / Date: {format_date_dmy(date_str)}")
+        c.drawString(15, page_h - 58, f"Report Period / Date: {format_date_dmy(date_str)}")
         c.setStrokeColor(colors.HexColor('#cbd5e1'))
-        c.line(20, page_h - 64, page_w - 20, page_h - 64)
+        c.line(15, page_h - 64, page_w - 15, page_h - 64)
 
     draw_top_banner()
     cur_y = page_h - 80
@@ -211,23 +211,29 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
 
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor(header_color))
-        c.drawString(20, cur_y, f"--- {section_title} ---")
+        c.drawString(15, cur_y, f"--- {section_title} ---")
         cur_y -= 16
 
-        headers = ["SL", "Invoice No", "Party Name", "Variety Name", "Bags", "Rate", "LF", "p/b cost", "Total Val (Rs)"]
-        col_widths = [18, 65, 115, 125, 38, 38, 40, 42, 74]  # sum = 555pt
+        headers = ["SL", "Invoice No", "Party Name", "Variety Name", "Bags", "Rate", "LF Total", "P/B Cost", "Total Val (Rs)"]
+        col_widths = [16, 60, 105, 115, 42, 42, 48, 48, 89]  # sum = 565pt
+        alignments = ['C', 'L', 'L', 'L', 'R', 'R', 'R', 'R', 'R']
         
         def render_headers():
             nonlocal cur_y
             c.setStrokeColor(colors.black)
             c.setLineWidth(0.6)
-            x_pos = 20
-            for h, w in zip(headers, col_widths):
+            x_pos = 15
+            for h, w, al in zip(headers, col_widths, alignments):
                 c.setFillColor(colors.HexColor(header_color))
                 c.rect(x_pos, cur_y - 14, w, 14, fill=True, stroke=True)
                 c.setFillColor(colors.white)
                 c.setFont("Helvetica-Bold", 7.0)
-                c.drawString(x_pos + 3, cur_y - 10, h)
+                if al == 'C':
+                    c.drawCentredString(x_pos + (w / 2.0), cur_y - 10, h)
+                elif al == 'R':
+                    c.drawRightString(x_pos + w - 4, cur_y - 10, h)
+                else:
+                    c.drawString(x_pos + 3, cur_y - 10, h)
                 x_pos += w
             cur_y -= 14
 
@@ -278,15 +284,15 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
                 [str(r.get('invoice_no', '-'))],
                 party_lines,
                 variety_lines,
-                [str(bags)],
+                [f"{bags:,}"],
                 [f"Rs.{rate:.2f}"],
                 [lf_display],
                 [f"Rs.{pb:.2f}"],
                 [f"{val:,.2f}"]
             ]
 
-            x_pos = 20
-            for lines_list, w in zip(row_cells, col_widths):
+            x_pos = 15
+            for lines_list, w, al in zip(row_cells, col_widths, alignments):
                 c.setFillColor(bg)
                 c.setStrokeColor(colors.black)
                 c.setLineWidth(0.5)
@@ -296,23 +302,33 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
                 c.setFont("Helvetica", 7.0)
                 if len(lines_list) == 1:
                     y_text = cur_y - (row_h / 2.0) - 2.5
-                    c.drawString(x_pos + 3, y_text, lines_list[0])
+                    if al == 'C':
+                        c.drawCentredString(x_pos + (w / 2.0), y_text, lines_list[0])
+                    elif al == 'R':
+                        c.drawRightString(x_pos + w - 4, y_text, lines_list[0])
+                    else:
+                        c.drawString(x_pos + 3, y_text, lines_list[0])
                 else:
                     for l_idx, line_str in enumerate(lines_list):
                         y_text = cur_y - 8.5 - (l_idx * 9.0)
-                        c.drawString(x_pos + 3, y_text, line_str)
+                        if al == 'C':
+                            c.drawCentredString(x_pos + (w / 2.0), y_text, line_str)
+                        elif al == 'R':
+                            c.drawRightString(x_pos + w - 4, y_text, line_str)
+                        else:
+                            c.drawString(x_pos + 3, y_text, line_str)
                 x_pos += w
             cur_y -= row_h
 
         # Section Summary Row
         c.setFillColor(colors.HexColor('#e2e8f0'))
         c.setStrokeColor(colors.black)
-        c.rect(20, cur_y - 14, sum(col_widths), 14, fill=True, stroke=True)
+        c.rect(15, cur_y - 14, sum(col_widths), 14, fill=True, stroke=True)
         c.setFillColor(colors.HexColor('#0f172a'))
         c.setFont("Helvetica-Bold", 8)
-        c.drawString(22, cur_y - 10, f"TOTAL {section_title.upper()}")
-        c.drawString(22 + sum(col_widths[:4]), cur_y - 10, f"{total_bags} Bags")
-        c.drawRightString(20 + sum(col_widths) - 4, cur_y - 10, f"Rs. {total_val:,.2f}")
+        c.drawString(18, cur_y - 10, f"TOTAL {section_title.upper()}")
+        c.drawString(18 + sum(col_widths[:4]), cur_y - 10, f"{total_bags:,} Bags")
+        c.drawRightString(15 + sum(col_widths) - 4, cur_y - 10, f"Rs. {total_val:,.2f}")
         cur_y -= 25
 
     draw_section_table("INWARD REGISTER", inwards_data, "#10b981")
@@ -325,7 +341,7 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
     return pdf_out
 
 def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
-    """Generates a portrait PDF report for Empty Bags Ledger with zero text overlap and multi-page header support."""
+    """Generates a portrait PDF report for Empty Bags Ledger with perfect column alignment and zero text overlap."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
@@ -337,15 +353,15 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
         c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(20, page_h - 28, "MOTHER INDIA MILL")
+        c.drawString(15, page_h - 28, "MOTHER INDIA MILL")
         c.setFont("Helvetica-Bold", 10)
-        c.drawRightString(page_w - 20, page_h - 28, title.upper())
+        c.drawRightString(page_w - 15, page_h - 28, title.upper())
 
         c.setFillColor(colors.HexColor('#475569'))
         c.setFont("Helvetica", 9)
-        c.drawString(20, page_h - 58, f"Filter / Period: {format_date_dmy(date_str)}")
+        c.drawString(15, page_h - 58, f"Filter / Period: {format_date_dmy(date_str)}")
         c.setStrokeColor(colors.HexColor('#cbd5e1'))
-        c.line(20, page_h - 64, page_w - 20, page_h - 64)
+        c.line(15, page_h - 64, page_w - 15, page_h - 64)
 
     draw_top_banner()
     cur_y = page_h - 80
@@ -359,23 +375,29 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
 
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor(header_color))
-        c.drawString(20, cur_y, f"--- {section_title.upper()} ---")
+        c.drawString(15, cur_y, f"--- {section_title.upper()} ---")
         cur_y -= 16
 
-        headers = ["SL", "Variety Name", "Party Name", "Op. Bags", "Rate (Man)", "Avg Rate (p/b)", "LF Total", "Mov. Bags", "Cl. Bags", "Total Val (Rs)"]
-        col_widths = [18, 120, 105, 36, 38, 40, 40, 42, 42, 74]  # sum = 555pt
+        headers = ["SL", "Variety Name", "Party Name", "Op. Bags", "Rate (₹)", "P/B Cost", "LF Total", "Mov. Bags", "Cl. Bags", "Total Val (Rs)"]
+        col_widths = [16, 110, 96, 36, 38, 42, 48, 48, 45, 86]  # sum = 565pt
+        alignments = ['C', 'L', 'L', 'R', 'R', 'R', 'R', 'R', 'R', 'R']
 
         def render_headers():
             nonlocal cur_y
             c.setStrokeColor(colors.black)
             c.setLineWidth(0.6)
-            x_pos = 20
-            for h, w in zip(headers, col_widths):
+            x_pos = 15
+            for h, w, al in zip(headers, col_widths, alignments):
                 c.setFillColor(colors.HexColor(header_color))
                 c.rect(x_pos, cur_y - 14, w, 14, fill=True, stroke=True)
                 c.setFillColor(colors.white)
                 c.setFont("Helvetica-Bold", 7.0)
-                c.drawString(x_pos + 3, cur_y - 10, h)
+                if al == 'C':
+                    c.drawCentredString(x_pos + (w / 2.0), cur_y - 10, h)
+                elif al == 'R':
+                    c.drawRightString(x_pos + w - 4, cur_y - 10, h)
+                else:
+                    c.drawString(x_pos + 3, cur_y - 10, h)
                 x_pos += w
             cur_y -= 14
 
@@ -424,21 +446,23 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
             tot_lf += lf
             bg = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
 
+            lf_str = f"Rs.{lf:,.2f}" if lf > 0 else "-"
+
             row_cells = [
                 [str(idx + 1)],
                 variety_lines,
                 party_lines,
-                [str(op)],
+                [f"{op:,}"],
                 [f"Rs.{rate_man:.2f}"],
                 [f"Rs.{rate_avg:.2f}"],
-                [f"Rs.{lf:,.2f}" if lf > 0 else "-"],
-                [f"{'+' if is_inward else '-'}{mov_b}"],
-                [str(cl)],
+                [lf_str],
+                [f"{'+' if is_inward else '-'}{mov_b:,}"],
+                [f"{cl:,}"],
                 [f"{val:,.2f}"]
             ]
 
-            x_pos = 20
-            for lines_list, w in zip(row_cells, col_widths):
+            x_pos = 15
+            for lines_list, w, al in zip(row_cells, col_widths, alignments):
                 c.setFillColor(bg)
                 c.setStrokeColor(colors.black)
                 c.setLineWidth(0.5)
@@ -448,23 +472,33 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
                 c.setFont("Helvetica", 7.0)
                 if len(lines_list) == 1:
                     y_text = cur_y - (row_h / 2.0) - 2.5
-                    c.drawString(x_pos + 3, y_text, lines_list[0])
+                    if al == 'C':
+                        c.drawCentredString(x_pos + (w / 2.0), y_text, lines_list[0])
+                    elif al == 'R':
+                        c.drawRightString(x_pos + w - 4, y_text, lines_list[0])
+                    else:
+                        c.drawString(x_pos + 3, y_text, lines_list[0])
                 else:
                     for l_idx, line_str in enumerate(lines_list):
                         y_text = cur_y - 8.5 - (l_idx * 9.0)
-                        c.drawString(x_pos + 3, y_text, line_str)
+                        if al == 'C':
+                            c.drawCentredString(x_pos + (w / 2.0), y_text, line_str)
+                        elif al == 'R':
+                            c.drawRightString(x_pos + w - 4, y_text, line_str)
+                        else:
+                            c.drawString(x_pos + 3, y_text, line_str)
                 x_pos += w
             cur_y -= row_h
 
         # Summary Footer Row
         c.setFillColor(colors.HexColor('#e2e8f0'))
         c.setStrokeColor(colors.black)
-        c.rect(20, cur_y - 14, sum(col_widths), 14, fill=True, stroke=True)
+        c.rect(15, cur_y - 14, sum(col_widths), 14, fill=True, stroke=True)
         c.setFillColor(colors.HexColor('#0f172a'))
         c.setFont("Helvetica-Bold", 8)
-        c.drawString(22, cur_y - 10, f"TOTAL {section_title}")
-        c.drawString(22 + sum(col_widths[:3]), cur_y - 10, f"{tot_op} Op + {tot_mov} Mov = {tot_cl} Cl")
-        c.drawRightString(20 + sum(col_widths) - 4, cur_y - 10, f"Rs. {tot_val:,.2f}")
+        c.drawString(18, cur_y - 10, f"TOTAL {section_title}")
+        c.drawString(18 + sum(col_widths[:3]), cur_y - 10, f"{tot_op:,} Op + {tot_mov:,} Mov = {tot_cl:,} Cl")
+        c.drawRightString(15 + sum(col_widths) - 4, cur_y - 10, f"Rs. {tot_val:,.2f}")
         cur_y -= 25
 
     draw_ledger_section("INWARD", inwards_data, "#10b981", True)
