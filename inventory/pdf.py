@@ -13,24 +13,25 @@ def format_date_dmy(d_str):
         return f"{parts[2]}/{parts[1]}/{parts[0]}"
     return s
 
-def wrap_clean(text, max_len=20):
-    """Wraps text into clean multi-line string without truncating characters with '..'."""
+def wrap_clean(text, max_len=24):
+    """Wraps text into clean multi-line list without garbling or truncating."""
     s = str(text or '-').strip()
     if len(s) <= max_len:
         return [s]
     words = s.split(' ')
-    line1 = ""
-    line2 = ""
+    lines = []
+    current_line = ""
     for w in words:
-        if len((line1 + " " + w).strip()) <= max_len:
-            line1 = (line1 + " " + w).strip()
+        if not current_line:
+            current_line = w
+        elif len(current_line + " " + w) <= max_len:
+            current_line += " " + w
         else:
-            line2 = (line2 + " " + w).strip()
-    if line2:
-        if len(line2) > max_len:
-            line2 = line2[:max_len]
-        return [line1, line2]
-    return [s[:max_len]]
+            lines.append(current_line)
+            current_line = w
+    if current_line:
+        lines.append(current_line)
+    return lines[:3]
 
 def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None):
     """Draws a single professional invoice slip within designated bounding box."""
@@ -41,7 +42,7 @@ def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None)
     c.setLineWidth(1)
     c.rect(x + 5, y + 5, width - 10, height - 10)
     
-    # Header Banner (Thinner for 4-up vertical fit)
+    # Header Banner
     c.setFillColor(colors.HexColor('#1e3a8a'))
     c.rect(x + 5, y + height - 25, width - 10, 20, fill=True, stroke=False)
     
@@ -72,35 +73,29 @@ def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None)
         ("Per Bag Net Cost:", f"Rs. {entry_data.get('per_bag_cost', '0.00')}"),
     ]
 
-    # Content Table Details with Gridlines / Borders
     table_x = x + 15
     table_y_top = y + height - 40
     table_w = width - 30
     row_h = 11.5
     table_h = len(details) * row_h
     
-    # Draw table outer border
     c.setStrokeColor(colors.HexColor('#475569'))
     c.setLineWidth(0.75)
     c.rect(table_x, table_y_top - table_h, table_w, table_h, fill=False, stroke=True)
     
-    # Draw vertical gridline divider
     divider_x = table_x + 180
     c.line(divider_x, table_y_top - table_h, divider_x, table_y_top)
     
     cur_y = table_y_top
     for i, (label, val) in enumerate(details):
-        # Draw label
         c.setFillColor(colors.HexColor('#334155'))
         c.setFont("Helvetica-Bold" if "Total" in label or "Grand" in label or "Cost" in label else "Helvetica", 7.5)
         c.drawString(table_x + 6, cur_y - 8.5, label)
         
-        # Draw value
         c.setFillColor(colors.HexColor('#0f172a'))
         c.setFont("Helvetica-Bold" if "Total" in label or "Grand" in label or "Cost" in label else "Helvetica", 7.5)
         c.drawString(divider_x + 6, cur_y - 8.5, val)
         
-        # Draw horizontal gridline divider (except last row)
         if i < len(details) - 1:
             c.setStrokeColor(colors.HexColor('#cbd5e1'))
             c.setLineWidth(0.5)
@@ -120,7 +115,7 @@ def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None)
     c.restoreState()
 
 def generate_4up_a4_invoice(entry_type, entry_data):
-    """Generates an A4 PDF containing 4 identical vertical horizontal stacked invoice slips."""
+    """Generates an A4 PDF containing 4 identical vertical stacked invoice slips."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
@@ -130,7 +125,6 @@ def generate_4up_a4_invoice(entry_type, entry_data):
     
     title = "INWARD" if entry_type == 'inward' else "OUTWARD"
     
-    # 4 Vertical stacked slips
     slips = [
         (0, 3 * slip_h),
         (0, 2 * slip_h),
@@ -149,8 +143,7 @@ def generate_4up_a4_invoice(entry_type, entry_data):
     return pdf_out
 
 def _batch_fetch_varieties(row_list):
-    """Pre-fetch all Variety objects needed by PDF rows in ONE query.
-    Returns dict {variety_id: kgs_per_bag}."""
+    """Pre-fetch all Variety objects needed by PDF rows in ONE query."""
     from inventory.models import Variety
     variety_ids = set()
     for r in row_list:
@@ -169,79 +162,73 @@ def _batch_fetch_varieties(row_list):
     }
 
 def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
-    """Generates a portrait PDF report for Stocks (Inward & Outward registers)."""
+    """Generates a portrait PDF report for Stocks with zero text overlap and multi-page header support."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
 
-    # Performance fix: batch-fetch all varieties ONCE instead of N+1 in render loop
     variety_kgs_map = _batch_fetch_varieties(inwards_data + outwards_data)
 
-    # Header Banner
-    c.setFillColor(colors.HexColor('#1e3a8a'))
-    c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
-    
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(20, page_h - 28, "MOTHER INDIA MILL")
-    c.setFont("Helvetica-Bold", 10)
-    c.drawRightString(page_w - 20, page_h - 28, title.upper())
+    def draw_top_banner():
+        c.setFillColor(colors.HexColor('#1e3a8a'))
+        c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(20, page_h - 28, "MOTHER INDIA MILL")
+        c.setFont("Helvetica-Bold", 10)
+        c.drawRightString(page_w - 20, page_h - 28, title.upper())
 
-    c.setFillColor(colors.HexColor('#475569'))
-    c.setFont("Helvetica", 9)
-    c.drawString(20, page_h - 58, f"Report Period / Date: {format_date_dmy(date_str)}")
-    c.setStrokeColor(colors.HexColor('#cbd5e1'))
-    c.line(20, page_h - 64, page_w - 20, page_h - 64)
+        c.setFillColor(colors.HexColor('#475569'))
+        c.setFont("Helvetica", 9)
+        c.drawString(20, page_h - 58, f"Report Period / Date: {format_date_dmy(date_str)}")
+        c.setStrokeColor(colors.HexColor('#cbd5e1'))
+        c.line(20, page_h - 64, page_w - 20, page_h - 64)
 
+    draw_top_banner()
     cur_y = page_h - 80
 
     def draw_section_table(section_title, rows, header_color):
         nonlocal cur_y
         if cur_y < 120:
             c.showPage()
-            cur_y = page_h - 50
+            draw_top_banner()
+            cur_y = page_h - 80
 
-        # Section Header
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor(header_color))
         c.drawString(20, cur_y, f"--- {section_title} ---")
-        cur_y -= 15
+        cur_y -= 16
 
         headers = ["SL", "Invoice No", "Party Name", "Variety Name", "Bags", "Rate", "LF", "p/b cost", "Total Val (Rs)"]
-        col_widths = [18, 75, 125, 100, 38, 38, 40, 42, 59]
+        col_widths = [18, 65, 115, 125, 38, 38, 40, 42, 74]  # sum = 555pt
         
-        # Table Header Row
-        c.setFillColor(colors.HexColor(header_color))
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(0.6)
-        
-        x_pos = 20
-        for h, w in zip(headers, col_widths):
-            c.setFillColor(colors.HexColor(header_color))
-            c.rect(x_pos, cur_y - 14, w, 14, fill=True, stroke=True)
-            c.setFillColor(colors.white)
-            c.setFont("Helvetica-Bold", 7.0)
-            c.drawString(x_pos + 2, cur_y - 10, h)
-            x_pos += w
-        cur_y -= 14
+        def render_headers():
+            nonlocal cur_y
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(0.6)
+            x_pos = 20
+            for h, w in zip(headers, col_widths):
+                c.setFillColor(colors.HexColor(header_color))
+                c.rect(x_pos, cur_y - 14, w, 14, fill=True, stroke=True)
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 7.0)
+                c.drawString(x_pos + 3, cur_y - 10, h)
+                x_pos += w
+            cur_y -= 14
+
+        render_headers()
 
         total_bags = 0
         total_val = 0.0
 
-        c.setFont("Helvetica", 7.0)
         for idx, r in enumerate(rows):
-            if cur_y < 50:
-                c.showPage()
-                cur_y = page_h - 50
-
-            bg = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
             bags = int(r.get('bags', 0))
             val = float(r.get('total_value', 0) or 0)
             pb = float(r.get('per_bag_cost', 0) or 0)
+            rate = float(r.get('rate', 0) or 0)
             lf_amt = float(r.get('lf_amount', 0) or 0)
             lf_display = f"Rs.{lf_amt:.2f}" if r.get('lf_toggle') and lf_amt > 0 else "-"
             
-            # Performance fix: use pre-fetched map instead of DB query per row
             kgs = float(r.get('kgs_per_bag', 0) or 0)
             if kgs == 0:
                 v_id = r.get('variety') or r.get('variety_id')
@@ -249,18 +236,27 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
                     v_id = v_id.get('id')
                 if v_id:
                     kgs = variety_kgs_map.get(v_id, 0)
-                    
+
             v_name = str(r.get('variety_name', '-'))
             if kgs > 0 and f"({kgs}" not in v_name:
                 v_name = f"{v_name} ({kgs:.1f} kg)"
 
+            party_name = str(r.get('party_name', '-'))
+            
+            variety_lines = wrap_clean(v_name, 26)
+            party_lines = wrap_clean(party_name, 22)
+            max_lines = max(len(variety_lines), len(party_lines), 1)
+            row_h = 13 if max_lines == 1 else (max_lines * 9.5 + 4)
+
+            if cur_y - row_h < 45:
+                c.showPage()
+                draw_top_banner()
+                cur_y = page_h - 80
+                render_headers()
+
             total_bags += bags
             total_val += val
-
-            party_lines = wrap_clean(r.get('party_name', '-'), 22)
-            variety_lines = wrap_clean(v_name, 18)
-            max_lines = max(len(party_lines), len(variety_lines))
-            row_h = 13 if max_lines == 1 else 20
+            bg = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
 
             row_cells = [
                 [str(idx + 1)],
@@ -268,9 +264,9 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
                 party_lines,
                 variety_lines,
                 [str(bags)],
-                [f"{r.get('rate', 0)}"],
+                [f"Rs.{rate:.2f}"],
                 [lf_display],
-                [f"{pb:.2f}"],
+                [f"Rs.{pb:.2f}"],
                 [f"{val:,.2f}"]
             ]
 
@@ -282,11 +278,14 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
                 c.rect(x_pos, cur_y - row_h, w, row_h, fill=True, stroke=True)
                 
                 c.setFillColor(colors.HexColor('#0f172a'))
+                c.setFont("Helvetica", 7.0)
                 if len(lines_list) == 1:
-                    c.drawString(x_pos + 2, cur_y - (row_h - 3), lines_list[0])
+                    y_text = cur_y - (row_h / 2.0) - 2.5
+                    c.drawString(x_pos + 3, y_text, lines_list[0])
                 else:
-                    c.drawString(x_pos + 2, cur_y - 8, lines_list[0])
-                    c.drawString(x_pos + 2, cur_y - 16, lines_list[1])
+                    for l_idx, line_str in enumerate(lines_list):
+                        y_text = cur_y - 8.5 - (l_idx * 9.0)
+                        c.drawString(x_pos + 3, y_text, line_str)
                 x_pos += w
             cur_y -= row_h
 
@@ -311,69 +310,65 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
     return pdf_out
 
 def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
-    """Generates a portrait PDF report for Empty Bags Ledger with separate Inward (Green) and Outward (Red) tables and cell borders."""
+    """Generates a portrait PDF report for Empty Bags Ledger with zero text overlap and multi-page header support."""
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     page_w, page_h = A4
 
-    # Performance fix: batch-fetch all varieties ONCE
     variety_kgs_map = _batch_fetch_varieties(inwards_data + outwards_data)
 
-    # Header Banner
-    c.setFillColor(colors.HexColor('#1e3a8a'))
-    c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
-    
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(20, page_h - 28, "MOTHER INDIA MILL")
-    c.setFont("Helvetica-Bold", 10)
-    c.drawRightString(page_w - 20, page_h - 28, title.upper())
+    def draw_top_banner():
+        c.setFillColor(colors.HexColor('#1e3a8a'))
+        c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(20, page_h - 28, "MOTHER INDIA MILL")
+        c.setFont("Helvetica-Bold", 10)
+        c.drawRightString(page_w - 20, page_h - 28, title.upper())
 
-    c.setFillColor(colors.HexColor('#475569'))
-    c.setFont("Helvetica", 9)
-    c.drawString(20, page_h - 58, f"Filter / Period: {format_date_dmy(date_str)}")
-    c.setStrokeColor(colors.HexColor('#cbd5e1'))
-    c.line(20, page_h - 64, page_w - 20, page_h - 64)
+        c.setFillColor(colors.HexColor('#475569'))
+        c.setFont("Helvetica", 9)
+        c.drawString(20, page_h - 58, f"Filter / Period: {format_date_dmy(date_str)}")
+        c.setStrokeColor(colors.HexColor('#cbd5e1'))
+        c.line(20, page_h - 64, page_w - 20, page_h - 64)
 
+    draw_top_banner()
     cur_y = page_h - 80
 
     def draw_ledger_section(section_title, rows, header_color, is_inward):
         nonlocal cur_y
         if cur_y < 120:
             c.showPage()
-            cur_y = page_h - 50
+            draw_top_banner()
+            cur_y = page_h - 80
 
-        # Section Header Title
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor(header_color))
         c.drawString(20, cur_y, f"--- {section_title.upper()} ---")
-        cur_y -= 15
+        cur_y -= 16
 
         headers = ["SL", "Variety Name", "Party Name", "Op. Bags", "Rate (Man)", "Avg Rate (p/b)", "LF Total", "Mov. Bags", "Cl. Bags", "Total Val (Rs)"]
-        col_widths = [18, 90, 85, 42, 45, 48, 45, 45, 42, 55]
+        col_widths = [18, 120, 105, 36, 38, 40, 40, 42, 42, 74]  # sum = 555pt
 
-        # Table Header Row
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(0.6)
-        x_pos = 20
-        for h, w in zip(headers, col_widths):
-            c.setFillColor(colors.HexColor(header_color))
-            c.rect(x_pos, cur_y - 14, w, 14, fill=True, stroke=True)
-            c.setFillColor(colors.white)
-            c.setFont("Helvetica-Bold", 7.0)
-            c.drawString(x_pos + 2, cur_y - 10, h)
-            x_pos += w
-        cur_y -= 14
+        def render_headers():
+            nonlocal cur_y
+            c.setStrokeColor(colors.black)
+            c.setLineWidth(0.6)
+            x_pos = 20
+            for h, w in zip(headers, col_widths):
+                c.setFillColor(colors.HexColor(header_color))
+                c.rect(x_pos, cur_y - 14, w, 14, fill=True, stroke=True)
+                c.setFillColor(colors.white)
+                c.setFont("Helvetica-Bold", 7.0)
+                c.drawString(x_pos + 3, cur_y - 10, h)
+                x_pos += w
+            cur_y -= 14
 
-        c.setFont("Helvetica", 7.0)
+        render_headers()
+
         tot_op, tot_mov, tot_cl, tot_val, tot_lf = 0, 0, 0, 0.0, 0.0
 
         for idx, r in enumerate(rows):
-            if cur_y < 50:
-                c.showPage()
-                cur_y = page_h - 50
-
-            bg = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
             op = int(r.get('opening_bags', 0))
             mov_b = int(r.get('inward_bags' if is_inward else 'outward_bags', 0))
             cl = int(r.get('closing_bags', 0))
@@ -382,7 +377,6 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
             rate_man = float(r.get('rate_per_bag', 0) or 0.0)
             rate_avg = float(r.get('rate_per_bag', 0) or 0.0)
             
-            # Performance fix: use pre-fetched map
             kgs = float(r.get('kgs_per_bag', 0) or 0.0)
             if kgs == 0:
                 v_id = r.get('variety') or r.get('variety_id')
@@ -395,16 +389,25 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
             if kgs > 0 and f"({kgs}" not in v_name:
                 v_name = f"{v_name} ({kgs:.1f} kg)"
 
+            party_name = str(r.get('latest_party', '-'))
+
+            variety_lines = wrap_clean(v_name, 26)
+            party_lines = wrap_clean(party_name, 22)
+            max_lines = max(len(variety_lines), len(party_lines), 1)
+            row_h = 13 if max_lines == 1 else (max_lines * 9.5 + 4)
+
+            if cur_y - row_h < 45:
+                c.showPage()
+                draw_top_banner()
+                cur_y = page_h - 80
+                render_headers()
+
             tot_op += op
             tot_mov += mov_b
             tot_cl += cl
             tot_val += val
             tot_lf += lf
-
-            variety_lines = wrap_clean(v_name, 18)
-            party_lines = wrap_clean(r.get('latest_party', '-'), 16)
-            max_lines = max(len(variety_lines), len(party_lines))
-            row_h = 13 if max_lines == 1 else 20
+            bg = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
 
             row_cells = [
                 [str(idx + 1)],
@@ -427,11 +430,14 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
                 c.rect(x_pos, cur_y - row_h, w, row_h, fill=True, stroke=True)
                 
                 c.setFillColor(colors.HexColor('#0f172a'))
+                c.setFont("Helvetica", 7.0)
                 if len(lines_list) == 1:
-                    c.drawString(x_pos + 2, cur_y - (row_h - 3), lines_list[0])
+                    y_text = cur_y - (row_h / 2.0) - 2.5
+                    c.drawString(x_pos + 3, y_text, lines_list[0])
                 else:
-                    c.drawString(x_pos + 2, cur_y - 8, lines_list[0])
-                    c.drawString(x_pos + 2, cur_y - 16, lines_list[1])
+                    for l_idx, line_str in enumerate(lines_list):
+                        y_text = cur_y - 8.5 - (l_idx * 9.0)
+                        c.drawString(x_pos + 3, y_text, line_str)
                 x_pos += w
             cur_y -= row_h
 
@@ -442,7 +448,6 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
         c.setFillColor(colors.HexColor('#0f172a'))
         c.setFont("Helvetica-Bold", 8)
         c.drawString(22, cur_y - 10, f"TOTAL {section_title}")
-        
         c.drawString(22 + sum(col_widths[:3]), cur_y - 10, f"{tot_op} Op + {tot_mov} Mov = {tot_cl} Cl")
         c.drawRightString(20 + sum(col_widths) - 4, cur_y - 10, f"Rs. {tot_val:,.2f}")
         cur_y -= 25
