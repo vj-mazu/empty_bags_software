@@ -42,6 +42,9 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
         <button className={`nav-tab ${activeTab === 'ledger' ? 'active' : ''}`} onClick={() => setActiveTab('ledger')}>
           <i className="fas fa-book-open"></i> Empty Bags Ledger
         </button>
+        <button className={`nav-tab ${activeTab === 'place-ledger' ? 'active' : ''}`} onClick={() => setActiveTab('place-ledger')}>
+          <i className="fas fa-map-location-dot"></i> Place Stock Ledger
+        </button>
         
         <div className="dropdown" style={{ position: 'relative' }} onMouseEnter={() => setDropdownOpen(true)} onMouseLeave={() => setDropdownOpen(false)}>
           <button className={`nav-tab ${activeTab === 'masters' ? 'active' : ''}`} onClick={() => handleMasterClick('party')}>

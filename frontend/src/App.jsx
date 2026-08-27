@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
 import Stocks from './components/Stocks';
 import EmptyBagsLedger from './components/EmptyBagsLedger';
+import PlaceStockLedger from './components/PlaceStockLedger';
 import MasterCreation from './components/MasterCreation';
 import Approvals from './components/Approvals';
 import LoginModal from './components/LoginModal';
@@ -156,10 +157,11 @@ export default function App() {
         onAlertClick={() => setShowAlerts(true)} 
       />
 
-      <main className="main-content" style={activeTab === 'stocks' ? { padding: '1.25rem 0', width: '100%', maxWidth: '100%' } : { padding: '1.25rem' }}>
+      <main className="main-content">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'stocks' && <Stocks user={user} showToast={showToast} />}
         {activeTab === 'ledger' && <EmptyBagsLedger />}
+        {activeTab === 'place-ledger' && <PlaceStockLedger />}
         {activeTab === 'masters' && <MasterCreation user={user} activeSection={masterSubSection} showToast={showToast} />}
         {activeTab === 'approvals' && <Approvals showToast={showToast} />}
       </main>

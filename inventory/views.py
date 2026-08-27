@@ -937,3 +937,61 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
         approval_req.reviewed_at = timezone.now()
         approval_req.save()
         return Response({'status': 'rejected'})
+
+
+class PlaceStockLedgerAPIView(APIView):
+    """Calculates per-place stock transfers received, sales/usage, and remaining balance."""
+    def get(self, request):
+        place_id = request.query_params.get('place_id')
+        places = Place.objects.all()
+        if place_id:
+            places = places.filter(id=place_id)
+
+        results = []
+        for p in places:
+            transfers_qs = Outward.objects.filter(is_transfer=True, to_place=p).select_related('variety', 'party')
+            transferred_bags = transfers_qs.aggregate(tot=Sum('bags'))['tot'] or 0
+
+            sales_qs = Outward.objects.filter(party__place=p).select_related('variety', 'party')
+            sales_bags = sales_qs.aggregate(tot=Sum('bags'))['tot'] or 0
+
+            remaining_bags = transferred_bags - sales_bags
+
+            transfer_items = []
+            for t in transfers_qs.order_by('-date', '-id')[:50]:
+                transfer_items.append({
+                    'id': t.id,
+                    'invoice_no': t.invoice_no,
+                    'date': str(t.date),
+                    'from_place': t.from_place_name or 'Main Mill',
+                    'to_place': p.name,
+                    'variety_name': t.variety.name if t.variety else '-',
+                    'bags': t.bags,
+                    'rate': float(t.rate),
+                    'total_value': float(t.total_value)
+                })
+
+            sales_items = []
+            for s in sales_qs.order_by('-date', '-id')[:50]:
+                sales_items.append({
+                    'id': s.id,
+                    'invoice_no': s.invoice_no,
+                    'date': str(s.date),
+                    'party_name': s.party.name if s.party else '-',
+                    'variety_name': s.variety.name if s.variety else '-',
+                    'bags': s.bags,
+                    'rate': float(s.rate),
+                    'total_value': float(s.total_value)
+                })
+
+            results.append({
+                'place_id': p.id,
+                'place_name': p.name,
+                'transferred_in_bags': transferred_bags,
+                'sales_bags': sales_bags,
+                'remaining_bags': remaining_bags,
+                'recent_transfers': transfer_items,
+                'recent_sales': sales_items,
+            })
+
+        return Response({'results': results})

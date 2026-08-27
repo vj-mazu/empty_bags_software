@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getVarietyLedger } from '../api';
-
-const formatINR = (val) => {
-  const num = Number(val) || 0;
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2
-  }).format(num);
-};
+import { formatDate, formatINR, formatBags } from '../utils/formatters';
 
 export default function VarietyDetailModal({ varietyId, onClose, initialFilters = {} }) {
   const [data, setData] = useState(null);
@@ -64,28 +56,29 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
 
   return (
     <div className="modal-overlay" style={{ zIndex: 1000 }}>
-      <div className="modal" style={{ maxWidth: '980px', width: '95%' }}>
-        <div className="modal-hdr" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-          <div className="modal-title" style={{ color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <i className="fas fa-wheat-awn"></i> Detailed Itemized Variety Ledger: {data?.variety?.name || 'Loading...'}
+      <div className="modal" style={{ maxWidth: '1040px', width: '95%' }}>
+        <div className="modal-hdr">
+          <div className="modal-title" style={{ color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <i className="fas fa-wheat-awn"></i> Itemized Transaction Ledger: {data?.variety?.name || 'Loading...'}
             {data?.variety?.kgs_per_bag && (
-              <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1e40af', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+              <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1e40af', padding: '3px 8px', borderRadius: '6px', fontWeight: 700, border: '1px solid #bfdbfe' }}>
                 {data.variety.kgs_per_bag} kg/bag
               </span>
             )}
           </div>
-          <button className="close-btn" onClick={onClose}>&times;</button>
+          <button className="modal-close" onClick={onClose}>&times;</button>
         </div>
 
         {/* Filter Bar Inside Modal */}
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '6px', margin: '0.85rem 0', flexWrap: 'wrap', border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', margin: '0.85rem 0', flexWrap: 'wrap', border: '1px solid #e2e8f0' }}>
           {/* Type Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
-            <label style={{ fontWeight: 600, color: '#475569' }}>Type:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+            <label style={{ fontWeight: 700, color: '#475569' }}>Type:</label>
             <select 
               value={typeFilter} 
               onChange={(e) => setTypeFilter(e.target.value)} 
-              style={{ padding: '0.25rem 0.4rem', fontSize: '0.76rem', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontWeight: 600 }}
+              className="input"
+              style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', fontWeight: 600 }}
             >
               <option value="all">All (Inward + Outward)</option>
               <option value="inward">Inward Only</option>
@@ -93,30 +86,31 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
-            <label style={{ fontWeight: 600, color: '#475569' }}>Invoice No:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+            <label style={{ fontWeight: 700, color: '#475569' }}>Invoice No:</label>
             <input 
               type="text" 
               placeholder="Search Invoice..." 
               value={invoiceNo} 
               onChange={(e) => setInvoiceNo(e.target.value)} 
-              style={{ padding: '0.25rem 0.4rem', fontSize: '0.76rem', borderRadius: '4px', border: '1px solid #cbd5e1', width: '130px' }} 
+              className="input"
+              style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', width: '130px' }} 
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
-            <label style={{ fontWeight: 600, color: '#475569' }}>Month:</label>
-            <input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setStartDate(''); setEndDate(''); }} style={{ padding: '0.25rem 0.4rem', fontSize: '0.76rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+            <label style={{ fontWeight: 700, color: '#475569' }}>Month:</label>
+            <input type="month" value={month} onChange={(e) => { setMonth(e.target.value); setStartDate(''); setEndDate(''); }} className="input" style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }} />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
-            <label style={{ fontWeight: 600, color: '#475569' }}>From:</label>
-            <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setMonth(''); }} style={{ padding: '0.25rem 0.4rem', fontSize: '0.76rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+            <label style={{ fontWeight: 700, color: '#475569' }}>From:</label>
+            <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setMonth(''); }} className="input" style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }} />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}>
-            <label style={{ fontWeight: 600, color: '#475569' }}>To:</label>
-            <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setMonth(''); }} style={{ padding: '0.25rem 0.4rem', fontSize: '0.76rem', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+            <label style={{ fontWeight: 700, color: '#475569' }}>To:</label>
+            <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setMonth(''); }} className="input" style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }} />
           </div>
 
           <button className="btn btn-blue btn-sm" onClick={handleApplyFilter}>
@@ -129,18 +123,18 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
 
         {/* Itemized Transactions Table */}
         <div className="tbl-wrap" style={{ maxHeight: '420px', overflowY: 'auto' }}>
-          <table style={{ fontSize: '0.74rem' }}>
+          <table style={{ fontSize: '0.78rem' }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'center', width: '5%' }}>SL</th>
-                <th style={{ textAlign: 'center', width: '10%' }}>Type</th>
-                <th style={{ width: '14%' }}>Invoice No</th>
-                <th style={{ width: '12%' }}>Date</th>
-                <th style={{ width: '20%' }}>Party Name</th>
-                <th style={{ textAlign: 'center', width: '8%' }}>Bags</th>
-                <th style={{ textAlign: 'right', width: '10%' }}>Rate</th>
-                <th style={{ textAlign: 'right', width: '10%' }}>p/b cost</th>
-                <th style={{ textAlign: 'right', width: '11%' }}>Total Value</th>
+                <th style={{ textAlign: 'center', width: '30px' }}>SL</th>
+                <th style={{ textAlign: 'center', width: '80px' }}>Type</th>
+                <th>Invoice No</th>
+                <th>Date (DD/MM/YYYY)</th>
+                <th>Party / Customer</th>
+                <th style={{ textAlign: 'center' }}>Bags</th>
+                <th style={{ textAlign: 'right' }}>Rate</th>
+                <th style={{ textAlign: 'right' }}>P/B Cost</th>
+                <th style={{ textAlign: 'right' }}>Total Value</th>
               </tr>
             </thead>
             <tbody>
@@ -151,17 +145,17 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
                   .filter(t => typeFilter === 'all' || t.type === typeFilter)
                   .map((t, idx) => (
                     <tr key={`${t.type}-${t.id}-${idx}`}>
-                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{idx + 1}</td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${t.type === 'inward' ? 'badge-green' : 'badge-red'}`}>
+                        <span className={`role-pill ${t.type === 'inward' ? 'role-staff' : 'role-owner'}`}>
                           {t.type.toUpperCase()}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 600, color: '#1e293b' }}>{t.invoice_no || '-'}</td>
-                      <td style={{ color: '#64748b' }}>{t.date}</td>
-                      <td style={{ fontWeight: 600, color: '#334155' }}>{t.party_name}</td>
+                      <td style={{ fontWeight: 700, color: '#2563eb' }}>{t.invoice_no || '-'}</td>
+                      <td style={{ color: '#475569', fontWeight: 600 }}>{formatDate(t.date)}</td>
+                      <td style={{ fontWeight: 600, color: '#0f172a' }}>{t.party_name}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: t.type === 'inward' ? '#059669' : '#dc2626' }}>
-                        {t.type === 'inward' ? `+${t.bags}` : `-${t.bags}`}
+                        {t.type === 'inward' ? `+${formatBags(t.bags)}` : `-${formatBags(t.bags)}`}
                       </td>
                       <td style={{ textAlign: 'right' }}>₹{t.rate}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb' }}>₹{(t.per_bag_cost || t.rate).toFixed(2)}</td>
@@ -176,7 +170,7 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
           </table>
         </div>
 
-        <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+        <div style={{ marginTop: '1.25rem', textAlign: 'right' }}>
           <button className="btn btn-ghost" onClick={onClose}>Close</button>
         </div>
       </div>

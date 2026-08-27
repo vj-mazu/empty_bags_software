@@ -96,6 +96,7 @@ class OutwardSerializer(serializers.ModelSerializer):
     party_name = serializers.ReadOnlyField(source='party.name')
     variety_name = serializers.ReadOnlyField(source='variety.name')
     kgs_per_bag = serializers.ReadOnlyField(source='variety.kgs_per_bag')
+    to_place_name = serializers.ReadOnlyField(source='to_place.name')
     created_by_name = serializers.ReadOnlyField(source='created_by.username')
 
     class Meta:
@@ -103,7 +104,9 @@ class OutwardSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'sl_no', 'invoice_no', 'date', 'party', 'party_name', 
             'variety', 'variety_name', 'kgs_per_bag', 'rate', 'bags', 
-            'total_kgs', 'lf_toggle', 'lf_amount', 'total_value', 'per_bag_cost', 'created_by', 'created_by_name', 'created_at'
+            'total_kgs', 'lf_toggle', 'lf_amount', 'is_transfer', 
+            'from_place_name', 'to_place', 'to_place_name', 'total_value', 
+            'per_bag_cost', 'created_by', 'created_by_name', 'created_at'
         ]
 
     def validate(self, data):

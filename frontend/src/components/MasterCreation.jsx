@@ -8,8 +8,8 @@ import {
 import CustomConfirmModal from './CustomConfirmModal';
 
 const MasterCreation = ({ user, activeSection, showToast }) => {
-  // Master Tab filter: 'party' | 'variety' | 'place' | 'user'
   const [currentMasterTab, setCurrentMasterTab] = useState(activeSection || 'party');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Custom confirm dialog state
   const [confirmState, setConfirmState] = useState({
@@ -33,7 +33,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [showVarietyModal, setShowVarietyModal] = useState(false);
 
-  // Edit Tracking PIDs
+  // Edit Tracking IDs
   const [editUserId, setEditUserId] = useState(null);
   const [editPlaceId, setEditPlaceId] = useState(null);
   const [editPartyId, setEditPartyId] = useState(null);
@@ -97,12 +97,10 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
     e.preventDefault();
     try {
       if (editUserId) {
-        // Update user
         const payload = { username: userForm.username, role: userForm.role };
         if (userForm.password) payload.password = userForm.password;
         await updateUser(editUserId, payload);
       } else {
-        // Create user
         await createUser(userForm);
       }
       if (showToast) showToast(`User ${editUserId ? 'updated' : 'created'} successfully!`);
@@ -123,7 +121,6 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const handleDeleteUser = (id) => {
     if (user?.role !== 'OWNER') {
       if (showToast) showToast('Only OWNER can delete user accounts!', 'error');
-      else alert('Only OWNER can delete user accounts!');
       return;
     }
     setConfirmState({
@@ -140,7 +137,6 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           loadUsers();
         } catch (err) {
           if (showToast) showToast(err.message || 'Cannot delete user', 'error');
-          else alert(err.message || 'Cannot delete user');
         }
       }
     });
@@ -160,7 +156,6 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
       loadPlaces();
     } catch (err) {
       if (showToast) showToast(err.message || 'Error saving place', 'error');
-      else alert(err.message || 'Error saving place');
     }
   };
 
@@ -173,13 +168,12 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const handleDeletePlace = (id) => {
     if (user?.role !== 'OWNER') {
       if (showToast) showToast('Only OWNER can delete places!', 'error');
-      else alert('Only OWNER can delete places!');
       return;
     }
     setConfirmState({
       isOpen: true,
-      title: 'Delete Place Master?',
-      message: 'Are you sure you want to delete this place? This will error if it is linked to active parties.',
+      title: 'Delete Place?',
+      message: 'Are you sure you want to delete this place?',
       confirmText: 'Delete Place',
       confirmColor: '#dc2626',
       onConfirm: async () => {
@@ -189,8 +183,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           if (showToast) showToast('Place deleted successfully!');
           loadPlaces();
         } catch (err) {
-          if (showToast) showToast(err.message || 'Cannot delete place linked to existing parties!', 'error');
-          else alert(err.message || 'Cannot delete place linked to existing parties!');
+          if (showToast) showToast(err.message || 'Cannot delete place linked to parties!', 'error');
         }
       }
     });
@@ -226,7 +219,6 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
       loadParties();
     } catch (err) {
       if (showToast) showToast(err.message || 'Error saving party', 'error');
-      else alert(err.message || 'Error saving party');
     }
   };
 
@@ -244,13 +236,12 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const handleDeleteParty = (id) => {
     if (user?.role !== 'OWNER') {
       if (showToast) showToast('Only OWNER can delete parties!', 'error');
-      else alert('Only OWNER can delete parties!');
       return;
     }
     setConfirmState({
       isOpen: true,
-      title: 'Delete Party Master?',
-      message: 'Are you sure you want to delete this party? This will error if they have existing invoices.',
+      title: 'Delete Party?',
+      message: 'Are you sure you want to delete this party?',
       confirmText: 'Delete Party',
       confirmColor: '#dc2626',
       onConfirm: async () => {
@@ -261,7 +252,6 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           loadParties();
         } catch (err) {
           if (showToast) showToast(err.message || 'Cannot delete party linked to transactions!', 'error');
-          else alert(err.message || 'Cannot delete party linked to transactions!');
         }
       }
     });
@@ -288,7 +278,6 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
       loadVarieties();
     } catch (err) {
       if (showToast) showToast(err.message || 'Error saving variety', 'error');
-      else alert(err.message || 'Error saving variety');
     }
   };
 
@@ -305,13 +294,12 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const handleDeleteVariety = (id) => {
     if (user?.role !== 'OWNER') {
       if (showToast) showToast('Only OWNER can delete varieties!', 'error');
-      else alert('Only OWNER can delete varieties!');
       return;
     }
     setConfirmState({
       isOpen: true,
-      title: 'Delete Variety Master?',
-      message: 'Are you sure you want to delete this variety? This will fail if it has active bags or ledger records.',
+      title: 'Delete Variety?',
+      message: 'Are you sure you want to delete this variety?',
       confirmText: 'Delete Variety',
       confirmColor: '#dc2626',
       onConfirm: async () => {
@@ -322,226 +310,332 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           loadVarieties();
         } catch (err) {
           if (showToast) showToast(err.message || 'Cannot delete variety linked to stock transactions!', 'error');
-          else alert(err.message || 'Cannot delete variety linked to stock transactions!');
         }
       }
     });
   };
 
-  const showUser = currentMasterTab === 'user';
-  const showPlace = currentMasterTab === 'place';
-  const showParty = currentMasterTab === 'party';
-  const showVariety = currentMasterTab === 'variety';
+  // Filtered lists
+  const q = searchTerm.toLowerCase().trim();
+  const filteredParties = parties.filter(p => 
+    !q || p.name?.toLowerCase().includes(q) || p.shortcut_name?.toLowerCase().includes(q) || p.phone_number?.includes(q) || p.place_name?.toLowerCase().includes(q)
+  );
+  const filteredVarieties = varieties.filter(v => 
+    !q || v.name?.toLowerCase().includes(q) || String(v.kgs_per_bag).includes(q)
+  );
+  const filteredPlaces = places.filter(p => 
+    !q || p.name?.toLowerCase().includes(q)
+  );
+  const filteredUsers = users.filter(u => 
+    !q || u.username?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q)
+  );
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-      <div className="card-hdr" style={{ marginBottom: '1.25rem' }}>
-        <h2 className="card-title" style={{ fontSize: '1.2rem' }}>
-          <i className="fas fa-sliders" style={{ color: '#2563eb' }}></i> Master Creation Management
-        </h2>
+    <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
+      
+      {/* Top Header & Search Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <i className="fas fa-sliders" style={{ color: '#2563eb' }}></i> Master Records Management
+          </h2>
+          <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.15rem' }}>
+            Configure and maintain core database masters for Parties, Varieties, Branches, and System Users.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ position: 'relative' }}>
+            <i className="fas fa-search" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder={`Search ${currentMasterTab}...`} 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+              style={{ paddingLeft: '2rem', width: '220px', fontSize: '0.82rem' }}
+            />
+          </div>
+          {searchTerm && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setSearchTerm('')}>Clear</button>
+          )}
+        </div>
       </div>
 
-      {/* SUB TABS FILTER BUTTONS */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <button className={`btn ${currentMasterTab === 'party' ? 'btn-blue' : 'btn-ghost'}`} onClick={() => setCurrentMasterTab('party')}>
-          <i className="fas fa-address-book"></i> Party Master ({parties.length})
+      {/* SEGMENTED TAB BUTTONS BAR */}
+      <div className="master-tabs-bar">
+        <button 
+          className={`master-tab-btn ${currentMasterTab === 'party' ? 'active' : ''}`} 
+          onClick={() => { setCurrentMasterTab('party'); setSearchTerm(''); }}
+        >
+          <i className="fas fa-address-book" style={{ color: currentMasterTab === 'party' ? '#2563eb' : '#64748b' }}></i>
+          <span>Party Master</span>
+          <span className="tab-badge">{parties.length}</span>
         </button>
-        <button className={`btn ${currentMasterTab === 'variety' ? 'btn-blue' : 'btn-ghost'}`} onClick={() => setCurrentMasterTab('variety')}>
-          <i className="fas fa-wheat-awn"></i> Variety Master ({varieties.length})
+
+        <button 
+          className={`master-tab-btn ${currentMasterTab === 'variety' ? 'active' : ''}`} 
+          onClick={() => { setCurrentMasterTab('variety'); setSearchTerm(''); }}
+        >
+          <i className="fas fa-wheat-awn" style={{ color: currentMasterTab === 'variety' ? '#10b981' : '#64748b' }}></i>
+          <span>Variety Master</span>
+          <span className="tab-badge">{varieties.length}</span>
         </button>
-        <button className={`btn ${currentMasterTab === 'place' ? 'btn-blue' : 'btn-ghost'}`} onClick={() => setCurrentMasterTab('place')}>
-          <i className="fas fa-warehouse"></i> Place Master ({places.length})
+
+        <button 
+          className={`master-tab-btn ${currentMasterTab === 'place' ? 'active' : ''}`} 
+          onClick={() => { setCurrentMasterTab('place'); setSearchTerm(''); }}
+        >
+          <i className="fas fa-warehouse" style={{ color: currentMasterTab === 'place' ? '#f59e0b' : '#64748b' }}></i>
+          <span>Place / Branch</span>
+          <span className="tab-badge">{places.length}</span>
         </button>
-        <button className={`btn ${currentMasterTab === 'user' ? 'btn-blue' : 'btn-ghost'}`} onClick={() => setCurrentMasterTab('user')}>
-          <i className="fas fa-user-gear"></i> User Management ({users.length})
+
+        <button 
+          className={`master-tab-btn ${currentMasterTab === 'user' ? 'active' : ''}`} 
+          onClick={() => { setCurrentMasterTab('user'); setSearchTerm(''); }}
+        >
+          <i className="fas fa-user-gear" style={{ color: currentMasterTab === 'user' ? '#8b5cf6' : '#64748b' }}></i>
+          <span>User Accounts</span>
+          <span className="tab-badge">{users.length}</span>
         </button>
       </div>
 
-      <div>
-        
-        {/* SECTION 1: User Management */}
-        {showUser && (
-          <div className="card" id="section-user">
-            <div className="card-hdr">
-              <div className="card-title"><i className="fas fa-user-gear"></i> User Management</div>
-              <button className="btn btn-blue btn-sm" onClick={() => setShowUserModal(true)}>
-                <i className="fas fa-plus"></i> Add User
-              </button>
+      {/* TAB 1: PARTY MASTER */}
+      {currentMasterTab === 'party' && (
+        <div className="card">
+          <div className="card-hdr">
+            <div className="card-title">
+              <i className="fas fa-address-book" style={{ color: '#2563eb' }}></i> Parties &amp; Suppliers ({filteredParties.length})
             </div>
-            <div className="tbl-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Username</th>
-                    <th>Role</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id}>
-                      <td style={{ fontWeight: 600 }}>{u.username}</td>
-                      <td><span className={`role-pill ${u.role === 'OWNER' ? 'role-owner' : 'role-staff'}`}>{u.role}</span></td>
-                      <td style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button className="btn btn-blue btn-sm" onClick={() => handleEditUserClick(u)}>
-                          <i className="fas fa-edit"></i> Edit
-                        </button>
-                        {u.can_delete && user?.role === 'OWNER' ? (
-                          <button className="btn btn-red btn-sm" onClick={() => handleDeleteUser(u.id)}>
-                            <i className="fas fa-trash"></i> Delete
-                          </button>
-                        ) : (
-                          u.can_delete ? null : <span className="text-muted" style={{ fontSize: '0.72rem', alignSelf: 'center' }}><i className="fas fa-lock"></i> Protected</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {users.length === 0 && <tr><td colSpan="3" style={{ textAlign: 'center' }}>No users registered.</td></tr>}
-                </tbody>
-              </table>
-            </div>
+            <button className="btn btn-blue" onClick={() => setShowPartyModal(true)}>
+              <i className="fas fa-plus"></i> Add New Party
+            </button>
           </div>
-        )}
-
-        {/* SECTION 2: Place Master */}
-        {showPlace && (
-          <div className="card" id="section-place">
-            <div className="card-hdr">
-              <div className="card-title"><i className="fas fa-warehouse"></i> Place Master</div>
-              <button className="btn btn-blue btn-sm" onClick={() => setShowPlaceModal(true)}>
-                <i className="fas fa-plus"></i> Add Place
-              </button>
-            </div>
-            <div className="tbl-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Place Name</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {places.map(p => (
-                    <tr key={p.id}>
-                      <td style={{ fontWeight: 600 }}>{p.name}</td>
-                      <td style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button className="btn btn-blue btn-sm" onClick={() => handleEditPlaceClick(p)}>
-                          <i className="fas fa-edit"></i> Edit
-                        </button>
-                        {p.can_delete && user?.role === 'OWNER' ? (
-                          <button className="btn btn-red btn-sm" onClick={() => handleDeletePlace(p.id)}>
-                            <i className="fas fa-trash"></i> Delete
-                          </button>
-                        ) : (
-                          p.can_delete ? null : <span className="text-muted" style={{ fontSize: '0.72rem', alignSelf: 'center' }}><i className="fas fa-lock"></i> Linked</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {places.length === 0 && <tr><td colSpan="2" style={{ textAlign: 'center' }}>No places created.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* SECTION 3: Party Master */}
-        {showParty && (
-          <div className="card full-width" id="section-party">
-            <div className="card-hdr">
-              <div className="card-title"><i className="fas fa-address-book"></i> Party Master</div>
-              <button className="btn btn-blue btn-sm" onClick={() => setShowPartyModal(true)}>
-                <i className="fas fa-plus"></i> Add Party
-              </button>
-            </div>
-            <div className="tbl-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Party Name</th>
-                    <th>Shortcut</th>
-                    <th>Phone Number</th>
-                    <th>Place</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {parties.map(pt => (
-                    <tr key={pt.id}>
-                      <td style={{ fontWeight: 700 }}>{pt.name}</td>
-                      <td>{pt.shortcut_name || '-'}</td>
-                      <td>{pt.phone_number || '-'}</td>
-                      <td>{pt.place_name || '-'}</td>
-                      <td style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button className="btn btn-blue btn-sm" onClick={() => handleEditPartyClick(pt)}>
-                          <i className="fas fa-edit"></i> Edit
+          <div className="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '5%', textAlign: 'center' }}>SL</th>
+                  <th style={{ width: '30%' }}>Party / Supplier Name</th>
+                  <th style={{ width: '15%' }}>Shortcut</th>
+                  <th style={{ width: '20%' }}>Phone Number</th>
+                  <th style={{ width: '18%' }}>Place / City</th>
+                  <th style={{ width: '12%', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredParties.map((pt, idx) => (
+                  <tr key={pt.id}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                    <td style={{ fontWeight: 700, color: '#0f172a' }}>{pt.name}</td>
+                    <td style={{ fontWeight: 600, color: '#475569' }}>{pt.shortcut_name || '-'}</td>
+                    <td style={{ color: '#334155' }}>{pt.phone_number || '-'}</td>
+                    <td style={{ color: '#334155' }}>{pt.place_name || '-'}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditPartyClick(pt)}>
+                          <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
                         </button>
                         {pt.can_delete && user?.role === 'OWNER' ? (
-                          <button className="btn btn-red btn-sm" onClick={() => handleDeleteParty(pt.id)}>
-                            <i className="fas fa-trash"></i> Delete
+                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteParty(pt.id)}>
+                            <i className="fas fa-trash" style={{ color: '#ef4444' }}></i>
                           </button>
                         ) : (
-                          pt.can_delete ? null : <span className="text-muted" style={{ fontSize: '0.72rem', alignSelf: 'center' }}><i className="fas fa-lock"></i> Linked</span>
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                            <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                          </span>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                  {parties.length === 0 && <tr><td colSpan="5" style={{ textAlign: 'center' }}>No parties created.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* SECTION 4: Variety Master */}
-        {showVariety && (
-          <div className="card full-width" id="section-variety">
-            <div className="card-hdr">
-              <div className="card-title"><i className="fas fa-wheat-awn"></i> Variety Master</div>
-              <button className="btn btn-blue btn-sm" onClick={() => setShowVarietyModal(true)}>
-                <i className="fas fa-plus"></i> Add Variety
-              </button>
-            </div>
-            <div className="tbl-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Photo</th>
-                    <th>Variety Name</th>
-                    <th>Standard Kg / Bag</th>
-                    <th>Actions</th>
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {varieties.map(v => (
-                    <tr key={v.id}>
-                      <td>
-                        {v.photo ? <img src={v.photo} alt={v.name} className="thumb" /> : <div className="thumb" style={{ background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-image" style={{ color: '#94a3b8' }}></i></div>}
-                      </td>
-                      <td style={{ fontWeight: 700 }}>{v.name}</td>
-                      <td style={{ fontWeight: 600 }}>{v.kgs_per_bag} kg</td>
-                      <td style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button className="btn btn-blue btn-sm" onClick={() => handleEditVarietyClick(v)}>
-                          <i className="fas fa-edit"></i> Edit
+                ))}
+                {filteredParties.length === 0 && (
+                  <tr><td colSpan="6" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No parties found matching criteria.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: VARIETY MASTER */}
+      {currentMasterTab === 'variety' && (
+        <div className="card">
+          <div className="card-hdr">
+            <div className="card-title">
+              <i className="fas fa-wheat-awn" style={{ color: '#10b981' }}></i> Variety Master ({filteredVarieties.length})
+            </div>
+            <button className="btn btn-green" onClick={() => setShowVarietyModal(true)}>
+              <i className="fas fa-plus"></i> Add New Variety
+            </button>
+          </div>
+          <div className="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '5%', textAlign: 'center' }}>SL</th>
+                  <th style={{ width: '8%', textAlign: 'center' }}>Photo</th>
+                  <th style={{ width: '37%' }}>Variety Name</th>
+                  <th style={{ width: '20%' }}>Standard Weight (Kg/Bag)</th>
+                  <th style={{ width: '18%' }}>Stock Position</th>
+                  <th style={{ width: '12%', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVarieties.map((v, idx) => (
+                  <tr key={v.id}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {v.photo ? (
+                        <img src={v.photo} alt={v.name} className="thumb" />
+                      ) : (
+                        <div className="thumb" style={{ background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <i className="fas fa-image" style={{ color: '#cbd5e1' }}></i>
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ fontWeight: 700, color: '#0f172a' }}>{v.name}</td>
+                    <td style={{ fontWeight: 600, color: '#2563eb' }}>{v.kgs_per_bag} kg</td>
+                    <td style={{ fontWeight: 700, color: (v.current_stock_bags || 0) < 2000 ? '#ef4444' : '#059669' }}>
+                      {(v.current_stock_bags || 0).toLocaleString()} Bags
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditVarietyClick(v)}>
+                          <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
                         </button>
                         {v.can_delete && user?.role === 'OWNER' ? (
-                          <button className="btn btn-red btn-sm" onClick={() => handleDeleteVariety(v.id)}>
-                            <i className="fas fa-trash"></i> Delete
+                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteVariety(v.id)}>
+                            <i className="fas fa-trash" style={{ color: '#ef4444' }}></i>
                           </button>
                         ) : (
-                          v.can_delete ? null : <span className="text-muted" style={{ fontSize: '0.72rem', alignSelf: 'center' }}><i className="fas fa-lock"></i> Linked</span>
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                            <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                          </span>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                  {varieties.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center' }}>No varieties created.</td></tr>}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredVarieties.length === 0 && (
+                  <tr><td colSpan="6" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No varieties found matching criteria.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+      )}
 
-      </div>
+      {/* TAB 3: PLACE MASTER */}
+      {currentMasterTab === 'place' && (
+        <div className="card">
+          <div className="card-hdr">
+            <div className="card-title">
+              <i className="fas fa-warehouse" style={{ color: '#f59e0b' }}></i> Place / Branch Master ({filteredPlaces.length})
+            </div>
+            <button className="btn btn-blue" onClick={() => setShowPlaceModal(true)}>
+              <i className="fas fa-plus"></i> Add New Place
+            </button>
+          </div>
+          <div className="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '8%', textAlign: 'center' }}>SL</th>
+                  <th style={{ width: '72%' }}>Place / Branch Location Name</th>
+                  <th style={{ width: '20%', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPlaces.map((p, idx) => (
+                  <tr key={p.id}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                    <td style={{ fontWeight: 700, color: '#0f172a' }}>{p.name}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditPlaceClick(p)}>
+                          <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
+                        </button>
+                        {p.can_delete && user?.role === 'OWNER' ? (
+                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeletePlace(p.id)}>
+                            <i className="fas fa-trash" style={{ color: '#ef4444' }}></i>
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                            <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredPlaces.length === 0 && (
+                  <tr><td colSpan="3" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No places found matching criteria.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: USER MANAGEMENT */}
+      {currentMasterTab === 'user' && (
+        <div className="card">
+          <div className="card-hdr">
+            <div className="card-title">
+              <i className="fas fa-user-gear" style={{ color: '#8b5cf6' }}></i> User Accounts ({filteredUsers.length})
+            </div>
+            <button className="btn btn-blue" onClick={() => setShowUserModal(true)}>
+              <i className="fas fa-plus"></i> Add New User
+            </button>
+          </div>
+          <div className="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '8%', textAlign: 'center' }}>SL</th>
+                  <th style={{ width: '42%' }}>Username</th>
+                  <th style={{ width: '30%' }}>Access Role</th>
+                  <th style={{ width: '20%', textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((u, idx) => (
+                  <tr key={u.id}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                    <td style={{ fontWeight: 700, color: '#0f172a' }}>{u.username}</td>
+                    <td>
+                      <span className={`role-pill ${u.role === 'OWNER' ? 'role-owner' : 'role-staff'}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditUserClick(u)}>
+                          <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
+                        </button>
+                        {u.can_delete && user?.role === 'OWNER' ? (
+                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteUser(u.id)}>
+                            <i className="fas fa-trash" style={{ color: '#ef4444' }}></i>
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                            <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <tr><td colSpan="4" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No users found matching criteria.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: USER */}
       {showUserModal && (
@@ -549,24 +643,25 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           <div className="modal">
             <div className="modal-hdr">
               <div className="modal-title">
-                <i className={editUserId ? "fas fa-user-pen" : "fas fa-user-plus"}></i> {editUserId ? "Edit User Details" : "Add New User"}
+                <i className={editUserId ? "fas fa-user-pen" : "fas fa-user-plus"} style={{ color: '#8b5cf6' }}></i> 
+                {editUserId ? "Edit User Details" : "Add New User Account"}
               </div>
               <button className="modal-close" onClick={closeUserModal}>&times;</button>
             </div>
             <form onSubmit={handleUserSubmit}>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
                 <label>Username</label>
-                <input type="text" className="input" value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} required />
+                <input type="text" className="input" value={userForm.username} onChange={e => setUserForm({ ...userForm, username: e.target.value })} required placeholder="Enter username" />
               </div>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                <label>Password {editUserId && <span style={{ color: '#64748b', fontSize: '0.72rem' }}>(Leave blank to keep current)</span>}</label>
-                <input type="password" className="input" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} required={!editUserId} />
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
+                <label>Password {editUserId && <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'none' }}>(Leave blank to keep unchanged)</span>}</label>
+                <input type="password" className="input" value={userForm.password} onChange={e => setUserForm({ ...userForm, password: e.target.value })} required={!editUserId} placeholder="Enter password" />
               </div>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label>Role</label>
+                <label>Role Authority</label>
                 <select className="input" value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })}>
-                  <option value="STAFF">Staff (Entry Only)</option>
-                  <option value="OWNER">Owner (Full Authority)</option>
+                  <option value="STAFF">Staff (Entry &amp; Approval Requests)</option>
+                  <option value="OWNER">Owner (Full Direct Authority)</option>
                 </select>
               </div>
               <div className="modal-actions">
@@ -586,14 +681,14 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           <div className="modal">
             <div className="modal-hdr">
               <div className="modal-title">
-                <i className="fas fa-warehouse"></i> {editPlaceId ? "Edit Place Details" : "Add New Place"}
+                <i className="fas fa-warehouse" style={{ color: '#f59e0b' }}></i> {editPlaceId ? "Edit Place Details" : "Add New Place / Branch"}
               </div>
               <button className="modal-close" onClick={closePlaceModal}>&times;</button>
             </div>
             <form onSubmit={handlePlaceSubmit}>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
                 <label>Place Name</label>
-                <input type="text" className="input" value={placeForm.name} onChange={e => setPlaceForm({ name: e.target.value })} required placeholder="e.g. Vijayawada" />
+                <input type="text" className="input" value={placeForm.name} onChange={e => setPlaceForm({ name: e.target.value })} required placeholder="e.g. Raichur Branch" />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={closePlaceModal}>Cancel</button>
@@ -612,28 +707,28 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           <div className="modal">
             <div className="modal-hdr">
               <div className="modal-title">
-                <i className="fas fa-address-book"></i> {editPartyId ? "Edit Party Details" : "Add New Party"}
+                <i className="fas fa-address-book" style={{ color: '#2563eb' }}></i> {editPartyId ? "Edit Party Details" : "Add New Party / Supplier"}
               </div>
               <button className="modal-close" onClick={closePartyModal}>&times;</button>
             </div>
             <form onSubmit={handlePartySubmit}>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                <label>Party Name</label>
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
+                <label>Party / Company Name</label>
                 <input type="text" className="input" value={partyForm.name} onChange={e => setPartyForm({ ...partyForm, name: e.target.value })} required placeholder="e.g. Sri Laxmi Rice Traders" />
               </div>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
-                <label>Shortcut Name</label>
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
+                <label>Shortcut Name (Optional)</label>
                 <input type="text" className="input" value={partyForm.shortcut_name} onChange={e => setPartyForm({ ...partyForm, shortcut_name: e.target.value })} placeholder="e.g. SLRT" />
               </div>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
                 <label>Phone Number (10 Digits)</label>
                 <input type="text" className="input" maxLength={10} value={partyForm.phone_number} onChange={e => { setPartyForm({ ...partyForm, phone_number: e.target.value }); setPhoneError(''); }} placeholder="e.g. 9876543210" />
                 {phoneError && <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.2rem' }}>{phoneError}</span>}
               </div>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label>Place</label>
+                <label>Place Location</label>
                 <select className="input" value={partyForm.place} onChange={e => setPartyForm({ ...partyForm, place: e.target.value })}>
-                  <option value="">-- Select Place --</option>
+                  <option value="">Select Place</option>
                   {places.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
@@ -656,26 +751,26 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           <div className="modal">
             <div className="modal-hdr">
               <div className="modal-title">
-                <i className="fas fa-wheat-awn"></i> {editVarietyId ? "Edit Variety Details" : "Add New Variety"}
+                <i className="fas fa-wheat-awn" style={{ color: '#10b981' }}></i> {editVarietyId ? "Edit Variety Details" : "Add New Bag Variety"}
               </div>
               <button className="modal-close" onClick={closeVarietyModal}>&times;</button>
             </div>
             <form onSubmit={handleVarietySubmit}>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
                 <label>Variety Name</label>
                 <input type="text" className="input" value={varietyForm.name} onChange={e => setVarietyForm({ ...varietyForm, name: e.target.value })} required placeholder="e.g. Sona Masoori Raw 50kg" />
               </div>
-              <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <div className="form-group" style={{ marginBottom: '0.95rem' }}>
                 <label>Standard Kgs Per Bag</label>
                 <input type="number" step="0.01" className="input" value={varietyForm.kgs_per_bag} onChange={e => setVarietyForm({ ...varietyForm, kgs_per_bag: e.target.value })} required placeholder="50.00" />
               </div>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label>Photo {editVarietyId ? <span style={{ color: '#64748b', fontSize: '0.72rem' }}>(Leave empty to keep current)</span> : <span style={{ color: '#64748b', fontSize: '0.72rem' }}>(Optional)</span>}</label>
+                <label>Variety Photo {editVarietyId ? <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'none' }}>(Leave empty to keep current)</span> : <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'none' }}>(Optional)</span>}</label>
                 <input type="file" accept="image/*" className="input" onChange={e => setVarietyForm({ ...varietyForm, photo: e.target.files[0] })} />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={closeVarietyModal}>Cancel</button>
-                <button type="submit" className="btn btn-blue">
+                <button type="submit" className="btn btn-green">
                   <i className="fas fa-save"></i> {editVarietyId ? "Update Variety" : "Save Variety"}
                 </button>
               </div>

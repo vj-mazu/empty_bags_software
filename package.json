@@ -1,0 +1,14 @@
+{
+  "name": "mother-india-stock-management",
+  "version": "1.0.0",
+  "description": "Empty Bags Stock Management System",
+  "scripts": {
+    "server": "cd . && python manage.py runserver",
+    "client": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install:frontend": "cd frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -213,6 +213,11 @@ export const getVarietyLedger = (varietyId, params = {}) => {
   return api(`/variety-ledger/${varietyId}/?${q.toString()}`);
 };
 
+export const getPlaceLedger = (placeId) => {
+  const q = placeId ? `?place_id=${placeId}` : '';
+  return api(`/place-ledger/${q}`);
+};
+
 // ═══ PDF Downloads ══════════════════════════════════════════════════════════
 
 export const downloadPdf = (type, id) => {

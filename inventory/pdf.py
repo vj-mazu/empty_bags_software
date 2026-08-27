@@ -3,11 +3,34 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 
-def truncate_clean(text, max_len):
-    s = str(text or '-').strip()
-    if len(s) > max_len:
-        return s[:max_len - 2] + ".."
+def format_date_dmy(d_str):
+    """Formats date string to Day/Month/Year (DD/MM/YYYY)."""
+    if not d_str:
+        return '-'
+    s = str(d_str).strip()
+    parts = s.split('T')[0].split('-')
+    if len(parts) == 3 and len(parts[0]) == 4:
+        return f"{parts[2]}/{parts[1]}/{parts[0]}"
     return s
+
+def wrap_clean(text, max_len=20):
+    """Wraps text into clean multi-line string without truncating characters with '..'."""
+    s = str(text or '-').strip()
+    if len(s) <= max_len:
+        return [s]
+    words = s.split(' ')
+    line1 = ""
+    line2 = ""
+    for w in words:
+        if len((line1 + " " + w).strip()) <= max_len:
+            line1 = (line1 + " " + w).strip()
+        else:
+            line2 = (line2 + " " + w).strip()
+    if line2:
+        if len(line2) > max_len:
+            line2 = line2[:max_len]
+        return [line1, line2]
+    return [s[:max_len]]
 
 def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None):
     """Draws a single professional invoice slip within designated bounding box."""
@@ -33,7 +56,7 @@ def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None)
     c.setFillColor(colors.HexColor('#334155'))
     c.setFont("Helvetica-Bold", 7.5)
     c.drawString(x + 15, y + height - 35, f"Invoice No: {entry_data.get('invoice_no')}")
-    c.drawRightString(x + width - 15, y + height - 35, f"Date: {entry_data.get('date')}")
+    c.drawRightString(x + width - 15, y + height - 35, f"Date: {format_date_dmy(entry_data.get('date'))}")
     
     lf_rate_str = f"Rs. {entry_data.get('lf_amount', '0.00')}" if entry_data.get('lf_toggle') else "NO"
 
@@ -166,7 +189,7 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
 
     c.setFillColor(colors.HexColor('#475569'))
     c.setFont("Helvetica", 9)
-    c.drawString(20, page_h - 58, f"Report Period / Date: {date_str}")
+    c.drawString(20, page_h - 58, f"Report Period / Date: {format_date_dmy(date_str)}")
     c.setStrokeColor(colors.HexColor('#cbd5e1'))
     c.line(20, page_h - 64, page_w - 20, page_h - 64)
 
@@ -234,29 +257,38 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
             total_bags += bags
             total_val += val
 
-            row_data = [
-                str(idx + 1),
-                truncate_clean(r.get('invoice_no', '-'), 15),
-                truncate_clean(r.get('party_name', '-'), 24),
-                truncate_clean(v_name, 20),
-                str(bags),
-                f"{r.get('rate', 0)}",
-                lf_display,
-                f"{pb:.2f}",
-                f"{val:,.2f}"
+            party_lines = wrap_clean(r.get('party_name', '-'), 22)
+            variety_lines = wrap_clean(v_name, 18)
+            max_lines = max(len(party_lines), len(variety_lines))
+            row_h = 13 if max_lines == 1 else 20
+
+            row_cells = [
+                [str(idx + 1)],
+                [str(r.get('invoice_no', '-'))],
+                party_lines,
+                variety_lines,
+                [str(bags)],
+                [f"{r.get('rate', 0)}"],
+                [lf_display],
+                [f"{pb:.2f}"],
+                [f"{val:,.2f}"]
             ]
 
             x_pos = 20
-            for val_str, w in zip(row_data, col_widths):
+            for lines_list, w in zip(row_cells, col_widths):
                 c.setFillColor(bg)
                 c.setStrokeColor(colors.black)
                 c.setLineWidth(0.5)
-                c.rect(x_pos, cur_y - 12, w, 12, fill=True, stroke=True)
+                c.rect(x_pos, cur_y - row_h, w, row_h, fill=True, stroke=True)
                 
                 c.setFillColor(colors.HexColor('#0f172a'))
-                c.drawString(x_pos + 2, cur_y - 9, val_str)
+                if len(lines_list) == 1:
+                    c.drawString(x_pos + 2, cur_y - (row_h - 3), lines_list[0])
+                else:
+                    c.drawString(x_pos + 2, cur_y - 8, lines_list[0])
+                    c.drawString(x_pos + 2, cur_y - 16, lines_list[1])
                 x_pos += w
-            cur_y -= 12
+            cur_y -= row_h
 
         # Section Summary Row
         c.setFillColor(colors.HexColor('#e2e8f0'))
@@ -299,7 +331,7 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
 
     c.setFillColor(colors.HexColor('#475569'))
     c.setFont("Helvetica", 9)
-    c.drawString(20, page_h - 58, f"Filter / Period: {date_str}")
+    c.drawString(20, page_h - 58, f"Filter / Period: {format_date_dmy(date_str)}")
     c.setStrokeColor(colors.HexColor('#cbd5e1'))
     c.line(20, page_h - 64, page_w - 20, page_h - 64)
 
@@ -369,30 +401,39 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
             tot_val += val
             tot_lf += lf
 
-            row_data = [
-                str(idx + 1),
-                truncate_clean(v_name, 18),
-                truncate_clean(r.get('latest_party', '-'), 16),
-                str(op),
-                f"Rs.{rate_man:.2f}",
-                f"Rs.{rate_avg:.2f}",
-                f"Rs.{lf:,.2f}" if lf > 0 else "-",
-                f"{'+' if is_inward else '-'}{mov_b}",
-                str(cl),
-                f"{val:,.2f}"
+            variety_lines = wrap_clean(v_name, 18)
+            party_lines = wrap_clean(r.get('latest_party', '-'), 16)
+            max_lines = max(len(variety_lines), len(party_lines))
+            row_h = 13 if max_lines == 1 else 20
+
+            row_cells = [
+                [str(idx + 1)],
+                variety_lines,
+                party_lines,
+                [str(op)],
+                [f"Rs.{rate_man:.2f}"],
+                [f"Rs.{rate_avg:.2f}"],
+                [f"Rs.{lf:,.2f}" if lf > 0 else "-"],
+                [f"{'+' if is_inward else '-'}{mov_b}"],
+                [str(cl)],
+                [f"{val:,.2f}"]
             ]
 
             x_pos = 20
-            for val_str, w in zip(row_data, col_widths):
+            for lines_list, w in zip(row_cells, col_widths):
                 c.setFillColor(bg)
                 c.setStrokeColor(colors.black)
                 c.setLineWidth(0.5)
-                c.rect(x_pos, cur_y - 12, w, 12, fill=True, stroke=True)
+                c.rect(x_pos, cur_y - row_h, w, row_h, fill=True, stroke=True)
                 
                 c.setFillColor(colors.HexColor('#0f172a'))
-                c.drawString(x_pos + 2, cur_y - 9, val_str)
+                if len(lines_list) == 1:
+                    c.drawString(x_pos + 2, cur_y - (row_h - 3), lines_list[0])
+                else:
+                    c.drawString(x_pos + 2, cur_y - 8, lines_list[0])
+                    c.drawString(x_pos + 2, cur_y - 16, lines_list[1])
                 x_pos += w
-            cur_y -= 12
+            cur_y -= row_h
 
         # Summary Footer Row
         c.setFillColor(colors.HexColor('#e2e8f0'))

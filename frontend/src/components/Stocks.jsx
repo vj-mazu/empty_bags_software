@@ -1,26 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getStocksToday, downloadPdf, downloadStocksPdf, deleteInward, deleteOutward, createApprovalRequest, getApprovals, invalidateCache } from '../api';
+import { getStocksToday, downloadPdf, downloadStocksPdf, deleteInward, deleteOutward, createApprovalRequest, invalidateCache } from '../api';
 import InwardModal from './InwardModal';
 import OutwardModal from './OutwardModal';
 import CustomConfirmModal from './CustomConfirmModal';
-
-const formatINR = (val) => {
-  const num = Number(val) || 0;
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2
-  }).format(num);
-};
-
-const formatDateString = (dateStr) => {
-  if (!dateStr) return '';
-  const parts = dateStr.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateStr;
-};
+import { formatDate, formatINR, formatBags } from '../utils/formatters';
 
 const renderProposedChange = (item, fieldName, originalVal, isPending, parties, varieties) => {
   if (!isPending || isPending.action_type !== 'EDIT' || !isPending.proposed_data) {
@@ -58,14 +41,14 @@ const renderProposedChange = (item, fieldName, originalVal, isPending, parties, 
     displayNew = found ? `${found.name} (${Number(found.kgs_per_bag).toFixed(1)} kg)` : proposed;
   } else if (fieldName === 'rate' || fieldName === 'total_value' || fieldName === 'lf_amount') {
     const num = Number(proposed) || 0;
-    displayNew = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(num);
+    displayNew = formatINR(num);
   } else if (fieldName === 'lf_toggle') {
     displayNew = proposed ? 'LF On' : 'LF Off';
   }
 
   return (
-    <div style={{ lineHeight: '1.1' }}>
-      <div style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.65rem' }}>{originalVal}</div>
+    <div style={{ lineHeight: '1.2' }}>
+      <div style={{ textDecoration: 'line-through', color: '#94a3b8', fontSize: '0.68rem' }}>{originalVal}</div>
       <div style={{ color: '#b45309', fontWeight: 800 }}>➜ {displayNew}</div>
     </div>
   );
@@ -76,10 +59,11 @@ const Stocks = ({ user, showToast }) => {
   const [parties, setParties] = useState([]);
   const [inwards, setInwards] = useState([]);
   const [outwards, setOutwards] = useState([]);
-  const [search, setSearch] = useState('');
   
-  const [showInward, setShowInward] = useState(false);
-  const [showOutward, setShowOutward] = useState(false);
+  const [viewMode, setViewMode] = useState('inward');
+
+  const [showInwardModal, setShowInwardModal] = useState(false);
+  const [showOutwardModal, setShowOutwardModal] = useState(false);
 
   const [businessDate, setBusinessDate] = useState('');
   const [openingStock, setOpeningStock] = useState(0);
@@ -104,7 +88,7 @@ const Stocks = ({ user, showToast }) => {
     setConfirmState({
       isOpen: true,
       title: `Delete ${type.toUpperCase()} Entry?`,
-      message: `Are you sure you want to delete this ${type} entry? This request will delete the transaction.`,
+      message: `Are you sure you want to delete this ${type} entry? This request will remove the transaction.`,
       confirmText: 'Delete',
       confirmColor: '#dc2626',
       onConfirm: async () => {
@@ -141,7 +125,6 @@ const Stocks = ({ user, showToast }) => {
     fetchData();
   }, [filterDate]);
 
-  // 🚀 Performance: single API call replaces 5 separate calls
   const fetchData = async () => {
     try {
       const getBusinessTodayStr = () => {
@@ -164,7 +147,6 @@ const Stocks = ({ user, showToast }) => {
       const activeDate = filterDate || todayStr;
       setBusinessDate(activeDate);
 
-      // 🚀 ONE API call instead of 5 (varieties + parties + inwards + outwards + approvals)
       const data = await getStocksToday(filterDate || undefined);
       
       setVarieties(data.varieties || []);
@@ -180,7 +162,6 @@ const Stocks = ({ user, showToast }) => {
   };
 
   const handleSaved = () => {
-    // Invalidate cache so next load gets fresh data
     invalidateCache('stocks-today');
     fetchData();
   };
@@ -194,232 +175,270 @@ const Stocks = ({ user, showToast }) => {
       } else {
         alert('Error downloading PDF: ' + err.message);
       }
-    };
+    }
   };
 
-  const filteredVarieties = Array.isArray(varieties) ? varieties.filter(v => 
-    v.name.toLowerCase().includes(search.toLowerCase())
-  ) : [];
+  const isSplit = viewMode === 'split';
+  const showInward = isSplit || viewMode === 'inward';
+  const showOutward = isSplit || viewMode === 'outward';
 
   return (
-    <div style={{ width: '100%', maxWidth: '100%', padding: '0 1.5rem' }}>
+    <div style={{ width: '100%', maxWidth: '100%' }}>
       
       {/* HEADER SECTION */}
-      <div className="card-hdr" style={{ marginBottom: '1rem' }}>
-        <h2 className="card-title" style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <i className="fas fa-boxes-stacked" style={{ color: '#2563eb' }}></i> Stocks
-          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>
-            (Date: {businessDate ? formatDateString(businessDate) : ''})
+      <div className="card-hdr" style={{ marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <h2 className="card-title" style={{ fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <i className="fas fa-boxes-stacked" style={{ color: '#2563eb' }}></i> Daily Stock Registers
+          </h2>
+          <span style={{ fontSize: '0.84rem', color: '#1e40af', background: '#eff6ff', padding: '0.25rem 0.65rem', borderRadius: '6px', fontWeight: 700, border: '1px solid #bfdbfe' }}>
+            <i className="fas fa-calendar-day" style={{ marginRight: '5px' }}></i>
+            Date: {businessDate ? formatDate(businessDate) : '-'}
           </span>
-        </h2>
+        </div>
         
-        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginRight: '0.5rem' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Select Date:</label>
+        <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Segmented Controls */}
+          <div className="master-tabs-bar" style={{ margin: 0, padding: '4px' }}>
+            <button 
+              className={`master-tab-btn ${viewMode === 'inward' ? 'active' : ''}`}
+              onClick={() => setViewMode('inward')}
+              style={{ padding: '0.45rem 0.9rem' }}
+            >
+              <i className="fas fa-boxes-packing" style={{ color: viewMode === 'inward' ? '#059669' : '#64748b' }}></i>
+              <span>Inward ({inwards.length})</span>
+            </button>
+            
+            <button 
+              className={`master-tab-btn ${viewMode === 'outward' ? 'active' : ''}`}
+              onClick={() => setViewMode('outward')}
+              style={{ padding: '0.45rem 0.9rem' }}
+            >
+              <i className="fas fa-truck-ramp-box" style={{ color: viewMode === 'outward' ? '#dc2626' : '#64748b' }}></i>
+              <span>Outward ({outwards.length})</span>
+            </button>
+
+            <button 
+              className={`master-tab-btn ${viewMode === 'split' ? 'active' : ''}`}
+              onClick={() => setViewMode('split')}
+              style={{ padding: '0.45rem 0.85rem' }}
+              title="Side by Side Split View"
+            >
+              <i className="fas fa-columns" style={{ color: viewMode === 'split' ? '#2563eb' : '#64748b' }}></i>
+              <span>Split View</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginRight: '0.25rem' }}>
+            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Date:</label>
             <input 
               type="date" 
               className="input" 
               value={filterDate || businessDate} 
               onChange={(e) => setFilterDate(e.target.value)}
-              style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', width: '135px' }}
+              style={{ padding: '0.4rem 0.6rem', fontSize: '0.82rem', width: '135px' }}
             />
           </div>
-          <button className="btn btn-green" onClick={() => setShowInward(true)}>
-            <i className="fas fa-plus-circle"></i> + Inward Entry
+          <button className="btn btn-green" onClick={() => setShowInwardModal(true)}>
+            <i className="fas fa-plus-circle"></i> + Inward
           </button>
-          <button className="btn btn-blue" onClick={() => setShowOutward(true)}>
-            <i className="fas fa-minus-circle"></i> - Outward Entry
+          <button className="btn btn-blue" onClick={() => setShowOutwardModal(true)}>
+            <i className="fas fa-minus-circle"></i> - Outward
           </button>
           <button className="btn btn-green" onClick={() => downloadStocksPdf({ date: filterDate || businessDate })} style={{ background: '#059669' }}>
-            <i className="fas fa-file-pdf"></i> Export PDF Report
+            <i className="fas fa-file-pdf"></i> PDF
           </button>
         </div>
       </div>
 
-      {/* TODAY'S OPENING STOCK (At Top) */}
-      <div style={{ marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.65rem 1rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px' }}>
-          <i className="fas fa-boxes" style={{ color: '#2563eb', fontSize: '1.15rem' }}></i>
+      {/* TODAY'S OPENING STOCK */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1.25rem', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
+          <i className="fas fa-boxes" style={{ color: '#2563eb', fontSize: '1.35rem' }}></i>
           <div>
-            <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Opening Stock</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e3a8a' }}>{openingStock.toLocaleString()} Bags</div>
+            <div style={{ fontSize: '0.72rem', color: '#1e40af', fontWeight: 700, textTransform: 'uppercase' }}>Day Opening Stock Position</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e3a8a' }}>{formatBags(openingStock)} Bags</div>
           </div>
         </div>
       </div>
 
-      {/* REGISTERS GRID (Side-By-Side Layout) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+      {/* REGISTERS GRID */}
+      <div style={{ display: 'grid', gridTemplateColumns: isSplit ? '1fr 1fr' : '1fr', gap: '1.25rem', marginBottom: '1.25rem', width: '100%' }}>
         
         {/* INWARD REGISTER */}
-        <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981' }}>
-          <div className="card-hdr" style={{ padding: '0.5rem 0.75rem' }}>
-            <div className="card-title" style={{ color: '#10b981', fontSize: '0.9rem' }}>
-              <i className="fas fa-boxes-packing"></i> Inward Register
+        {showInward && (
+          <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981', padding: isSplit ? '0.85rem' : '1.15rem' }}>
+            <div className="card-hdr" style={{ paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>
+              <div className="card-title" style={{ color: '#059669', fontSize: isSplit ? '0.88rem' : '0.95rem' }}>
+                <i className="fas fa-boxes-packing"></i> Inward Register ({inwards.length})
+              </div>
+            </div>
+            <div className="tbl-wrap">
+              <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'center', width: isSplit ? '24px' : '35px', padding: isSplit ? '4px 2px' : '6px 8px' }}>SL</th>
+                    <th style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>Invoice</th>
+                    <th style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Party' : 'Party / Supplier'}</th>
+                    <th style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>Variety</th>
+                    <th style={{ textAlign: 'center', padding: isSplit ? '4px 3px' : '6px 8px' }}>Bags</th>
+                    <th style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>Rate</th>
+                    <th style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 8px' }}>LF</th>
+                    <th style={{ textAlign: 'right', padding: isSplit ? '4px 4px' : '6px 8px' }}>Value</th>
+                    <th style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>P/B</th>
+                    <th style={{ textAlign: 'center', width: isSplit ? '75px' : '100px', padding: isSplit ? '4px 2px' : '6px 8px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.isArray(inwards) && inwards.map((item, index) => {
+                    const isPending = pendingMap[`INWARD_${item.id}`];
+                    const rowBg = isPending 
+                      ? (isPending.action_type === 'DELETE' ? '#fee2e2' : '#fef08a') 
+                      : undefined;
+                    const badgeBg = isPending?.action_type === 'DELETE' ? '#dc2626' : '#d97706';
+
+                    return (
+                      <tr key={item.id} style={{ backgroundColor: rowBg }}>
+                        <td style={{ fontWeight: 600, textAlign: 'center', color: '#64748b', padding: isSplit ? '4px 2px' : '6px 8px' }}>{index + 1}</td>
+                        <td style={{ fontWeight: 700, color: '#2563eb', padding: isSplit ? '4px 4px' : '6px 8px' }}>
+                          <div>{item.invoice_no}</div>
+                          {isPending && (
+                            <span style={{ fontSize: '0.6rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', fontWeight: 800 }}>
+                              PENDING
+                            </span>
+                          )}
+                        </td>
+                        <td className="wrap-text" style={{ padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '85px' : '150px' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
+                        <td className="wrap-text" style={{ padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '95px' : '160px' }}>{renderProposedChange(item, 'variety', item.kgs_per_bag ? `${item.variety_name} (${Number(item.kgs_per_bag).toFixed(0)}k)` : item.variety_name, isPending, parties, varieties)}</td>
+                        <td style={{ fontWeight: 800, textAlign: 'center', color: '#059669', padding: isSplit ? '4px 3px' : '6px 8px' }}>{renderProposedChange(item, 'bags', `+${formatBags(item.bags)}`, isPending, parties, varieties)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, padding: isSplit ? '4px 3px' : '6px 8px' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
+                        <td style={{ textAlign: 'center', color: '#64748b', padding: isSplit ? '4px 2px' : '6px 8px' }}>
+                          {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: isSplit ? '4px 4px' : '6px 8px' }}>{renderProposedChange(item, 'total_value', formatINR(item.total_value), isPending, parties, varieties)}</td>
+                        <td style={{ fontWeight: 700, textAlign: 'right', color: '#2563eb', padding: isSplit ? '4px 3px' : '6px 8px' }}>
+                          {formatINR(item.per_bag_cost && Number(item.per_bag_cost) > 0 ? item.per_bag_cost : (Number(item.total_value) / Number(item.bags || 1)))}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 8px' }}>
+                          <div style={{ display: 'flex', gap: '0.2rem', justifyContent: 'center', alignItems: 'center' }}>
+                            <button className="btn btn-ghost btn-sm" title="PDF" onClick={() => handleDownloadPdf('inward', item.id)} style={{ padding: '2px 4px' }}>
+                              <i className="fas fa-file-pdf" style={{ color: '#ef4444' }}></i>
+                            </button>
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { setEditingInward(item); setShowInwardModal(true); }} style={{ padding: '2px 4px' }} disabled={!!isPending}>
+                              <i className="fas fa-edit" style={{ color: isPending ? '#cbd5e1' : '#2563eb' }}></i>
+                            </button>
+                            <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteClick('inward', item.id)} style={{ padding: '2px 4px' }} disabled={!!isPending}>
+                              <i className="fas fa-trash" style={{ color: isPending ? '#cbd5e1' : '#dc2626' }}></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {(!inwards || inwards.length === 0) && (
+                    <tr><td colSpan="10" style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No inward records for selected date.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-          <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
-            <table style={{ tableLayout: 'auto', width: '100%', fontSize: '0.74rem' }}>
-              <thead>
-                <tr>
-                  <th className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '4%' }}>SL<br/>No</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '15%' }}>Invoice<br/>No</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '22%' }}>Party</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '18%' }}>Variety</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Bags</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Rate</th>
-                  <th className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '5%' }}>LF</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '12%' }}>Value</th>
-                  <th className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>P/B<br/>Cost</th>
-                  <th style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.isArray(inwards) && inwards.map((item, index) => {
-                  const isPending = pendingMap[`INWARD_${item.id}`];
-                  const rowBg = isPending 
-                    ? (isPending.action_type === 'DELETE' ? '#fee2e2' : '#fef08a') 
-                    : 'transparent';
-                  const badgeBg = isPending?.action_type === 'DELETE' ? '#dc2626' : '#d97706';
-
-                  return (
-                    <tr key={item.id} style={{ backgroundColor: rowBg }}>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{index + 1}</td>
-                      <td className="text-blue" style={{ padding: '0.35rem 0.25rem' }}>
-                        <div style={{ wordBreak: 'break-all' }}>{item.invoice_no}</div>
-                        {isPending && (
-                          <div style={{ display: 'inline-block', fontSize: '0.55rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', marginTop: '0.15rem', fontWeight: 'bold' }}>
-                            PENDING {isPending.action_type}
-                          </div>
-                        )}
-                      </td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.kgs_per_bag ? `${item.variety_name} (${Number(item.kgs_per_bag).toFixed(1)} kg)` : item.variety_name, isPending, parties, varieties)}</td>
-                      <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
-                      <td style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
-                        {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
-                      </td>
-                      <td className="text-green" style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'total_value', formatINR(item.total_value), isPending, parties, varieties)}</td>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'right' }}>
-                        {formatINR(item.per_bag_cost && Number(item.per_bag_cost) > 0 ? item.per_bag_cost : (Number(item.total_value) / Number(item.bags || 1)))}
-                      </td>
-                      <td style={{ padding: '0.35rem 0.25rem' }}>
-                        <div style={{ display: 'flex', gap: '0.2rem', justifyContent: 'center', alignItems: 'center' }}>
-                          <button className="btn btn-ghost btn-sm" title="Download PDF" onClick={() => handleDownloadPdf('inward', item.id)} style={{ padding: '1px' }}>
-                            <i className="fas fa-file-pdf" style={{ color: '#ef4444' }}></i>
-                          </button>
-                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { setEditingInward(item); setShowInward(true); }} style={{ padding: '1px' }} disabled={!!isPending}>
-                            <i className="fas fa-edit" style={{ color: isPending ? '#cbd5e1' : '#2563eb' }}></i>
-                          </button>
-                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteClick('inward', item.id)} style={{ padding: '1px' }} disabled={!!isPending}>
-                            <i className="fas fa-trash" style={{ color: isPending ? '#cbd5e1' : '#dc2626' }}></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {(!inwards || inwards.length === 0) && (
-                  <tr><td colSpan="9" style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>No inward records for today.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
 
         {/* OUTWARD REGISTER */}
-        <div className="card" style={{ margin: 0, borderTop: '4px solid #ef4444' }}>
-          <div className="card-hdr" style={{ padding: '0.5rem 0.75rem' }}>
-            <div className="card-title" style={{ color: '#2563eb', fontSize: '0.9rem' }}>
-              <i className="fas fa-truck-ramp-box" style={{ color: '#2563eb' }}></i> Outward Register
+        {showOutward && (
+          <div className="card" style={{ margin: 0, borderTop: '4px solid #ef4444', padding: isSplit ? '0.85rem' : '1.15rem' }}>
+            <div className="card-hdr" style={{ paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>
+              <div className="card-title" style={{ color: '#dc2626', fontSize: isSplit ? '0.88rem' : '0.95rem' }}>
+                <i className="fas fa-truck-ramp-box"></i> Outward Register ({outwards.length})
+              </div>
+            </div>
+            <div className="tbl-wrap">
+              <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th className="outward-th" style={{ textAlign: 'center', width: isSplit ? '24px' : '35px', padding: isSplit ? '4px 2px' : '6px 8px' }}>SL</th>
+                    <th className="outward-th" style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>Invoice</th>
+                    <th className="outward-th" style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Party' : 'Customer / Party'}</th>
+                    <th className="outward-th" style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>Variety</th>
+                    <th className="outward-th" style={{ textAlign: 'center', padding: isSplit ? '4px 3px' : '6px 8px' }}>Bags</th>
+                    <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>Rate</th>
+                    <th className="outward-th" style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 8px' }}>LF</th>
+                    <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 4px' : '6px 8px' }}>Value</th>
+                    <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>P/B</th>
+                    <th className="outward-th" style={{ textAlign: 'center', width: isSplit ? '75px' : '100px', padding: isSplit ? '4px 2px' : '6px 8px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.isArray(outwards) && outwards.map((item, index) => {
+                    const isPending = pendingMap[`OUTWARD_${item.id}`];
+                    const rowBg = isPending 
+                      ? (isPending.action_type === 'DELETE' ? '#fee2e2' : '#fef08a') 
+                      : undefined;
+                    const badgeBg = isPending?.action_type === 'DELETE' ? '#dc2626' : '#d97706';
+
+                    return (
+                      <tr key={item.id} style={{ backgroundColor: rowBg }}>
+                        <td style={{ fontWeight: 600, textAlign: 'center', color: '#64748b', padding: isSplit ? '4px 2px' : '6px 8px' }}>{index + 1}</td>
+                        <td style={{ fontWeight: 700, color: '#2563eb', padding: isSplit ? '4px 4px' : '6px 8px' }}>
+                          <div>{item.invoice_no}</div>
+                          {isPending && (
+                            <span style={{ fontSize: '0.6rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', fontWeight: 800 }}>
+                              PENDING
+                            </span>
+                          )}
+                        </td>
+                        <td className="wrap-text" style={{ padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '85px' : '150px' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
+                        <td className="wrap-text" style={{ padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '95px' : '160px' }}>{renderProposedChange(item, 'variety', item.kgs_per_bag ? `${item.variety_name} (${Number(item.kgs_per_bag).toFixed(0)}k)` : item.variety_name, isPending, parties, varieties)}</td>
+                        <td style={{ fontWeight: 800, textAlign: 'center', color: '#dc2626', padding: isSplit ? '4px 3px' : '6px 8px' }}>{renderProposedChange(item, 'bags', `-${formatBags(item.bags)}`, isPending, parties, varieties)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, padding: isSplit ? '4px 3px' : '6px 8px' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
+                        <td style={{ textAlign: 'center', color: '#64748b', padding: isSplit ? '4px 2px' : '6px 8px' }}>
+                          {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: isSplit ? '4px 4px' : '6px 8px' }}>{renderProposedChange(item, 'total_value', formatINR(item.total_value), isPending, parties, varieties)}</td>
+                        <td style={{ fontWeight: 700, textAlign: 'right', color: '#2563eb', padding: isSplit ? '4px 3px' : '6px 8px' }}>
+                          {formatINR(item.per_bag_cost && Number(item.per_bag_cost) > 0 ? item.per_bag_cost : (Number(item.total_value) / Number(item.bags || 1)))}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 8px' }}>
+                          <div style={{ display: 'flex', gap: '0.2rem', justifyContent: 'center', alignItems: 'center' }}>
+                            <button className="btn btn-ghost btn-sm" title="PDF" onClick={() => handleDownloadPdf('outward', item.id)} style={{ padding: '2px 4px' }}>
+                              <i className="fas fa-file-pdf" style={{ color: '#ef4444' }}></i>
+                            </button>
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { setEditingOutward(item); setShowOutwardModal(true); }} style={{ padding: '2px 4px' }} disabled={!!isPending}>
+                              <i className="fas fa-edit" style={{ color: isPending ? '#cbd5e1' : '#2563eb' }}></i>
+                            </button>
+                            <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteClick('outward', item.id)} style={{ padding: '2px 4px' }} disabled={!!isPending}>
+                              <i className="fas fa-trash" style={{ color: isPending ? '#cbd5e1' : '#dc2626' }}></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {(!outwards || outwards.length === 0) && (
+                    <tr><td colSpan="10" style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No outward records for selected date.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-          <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
-            <table style={{ tableLayout: 'auto', width: '100%', fontSize: '0.74rem' }}>
-              <thead>
-                <tr>
-                  <th className="mobile-hide outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '4%' }}>SL<br/>No</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '15%' }}>Invoice<br/>No</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '22%' }}>Party</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '18%' }}>Variety</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Bags</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Rate</th>
-                  <th className="mobile-hide outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '5%' }}>LF</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '12%' }}>Value</th>
-                  <th className="mobile-hide outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>P/B<br/>Cost</th>
-                  <th className="outward-th" style={{ padding: '0.35rem 0.25rem', fontSize: '0.74rem', whiteSpace: 'normal', lineHeight: '1.1', textAlign: 'center', width: '8%' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.isArray(outwards) && outwards.map((item, index) => {
-                  const isPending = pendingMap[`OUTWARD_${item.id}`];
-                  const rowBg = isPending 
-                    ? (isPending.action_type === 'DELETE' ? '#fee2e2' : '#fef08a') 
-                    : 'transparent';
-                  const badgeBg = isPending?.action_type === 'DELETE' ? '#dc2626' : '#d97706';
-
-                  return (
-                    <tr key={item.id} style={{ backgroundColor: rowBg }}>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{index + 1}</td>
-                      <td className="text-blue" style={{ padding: '0.35rem 0.25rem' }}>
-                        <div style={{ wordBreak: 'break-all' }}>{item.invoice_no}</div>
-                        {isPending && (
-                          <div style={{ display: 'inline-block', fontSize: '0.55rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', marginTop: '0.15rem', fontWeight: 'bold' }}>
-                            PENDING {isPending.action_type}
-                          </div>
-                        )}
-                      </td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'party', item.party_name, isPending, parties, varieties)}</td>
-                      <td className="wrap-text" style={{ padding: '0.35rem 0.25rem' }}>{renderProposedChange(item, 'variety', item.kgs_per_bag ? `${item.variety_name} (${Number(item.kgs_per_bag).toFixed(1)} kg)` : item.variety_name, isPending, parties, varieties)}</td>
-                      <td style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'center' }}>{renderProposedChange(item, 'bags', item.bags, isPending, parties, varieties)}</td>
-                      <td style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'rate', formatINR(item.rate), isPending, parties, varieties)}</td>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
-                        {renderProposedChange(item, 'lf_amount', item.lf_toggle ? formatINR(item.lf_amount) : '-', isPending, parties, varieties)}
-                      </td>
-                      <td className="text-green" style={{ padding: '0.35rem 0.25rem', textAlign: 'right' }}>{renderProposedChange(item, 'total_value', formatINR(item.total_value), isPending, parties, varieties)}</td>
-                      <td className="mobile-hide" style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textAlign: 'right' }}>
-                        {formatINR(item.per_bag_cost && Number(item.per_bag_cost) > 0 ? item.per_bag_cost : (Number(item.total_value) / Number(item.bags || 1)))}
-                      </td>
-                      <td style={{ padding: '0.35rem 0.25rem' }}>
-                        <div style={{ display: 'flex', gap: '0.2rem', justifyContent: 'center', alignItems: 'center' }}>
-                          <button className="btn btn-ghost btn-sm" title="Download PDF" onClick={() => handleDownloadPdf('outward', item.id)} style={{ padding: '1px' }}>
-                            <i className="fas fa-file-pdf" style={{ color: '#ef4444' }}></i>
-                          </button>
-                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => { setEditingOutward(item); setShowOutward(true); }} style={{ padding: '1px' }} disabled={!!isPending}>
-                            <i className="fas fa-edit" style={{ color: isPending ? '#cbd5e1' : '#2563eb' }}></i>
-                          </button>
-                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteClick('outward', item.id)} style={{ padding: '1px' }} disabled={!!isPending}>
-                            <i className="fas fa-trash" style={{ color: isPending ? '#cbd5e1' : '#dc2626' }}></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {(!outwards || outwards.length === 0) && (
-                  <tr><td colSpan="9" style={{ textAlign: 'center', color: '#64748b' }}>No outward records for today.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
 
       </div>
 
-      {/* TODAY'S CLOSING STOCK (At Bottom) */}
+      {/* TODAY'S CLOSING STOCK */}
       <div style={{ marginTop: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.65rem 1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px' }}>
-          <i className="fas fa-cubes" style={{ color: '#d97706', fontSize: '1.15rem' }}></i>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.85rem 1.25rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+          <i className="fas fa-cubes" style={{ color: '#d97706', fontSize: '1.35rem' }}></i>
           <div>
-            <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Closing Stock</div>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#b45309' }}>{closingStock.toLocaleString()} Bags</div>
+            <div style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 700, textTransform: 'uppercase' }}>Day Closing Stock Position</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#b45309' }}>{formatBags(closingStock)} Bags</div>
           </div>
         </div>
       </div>
 
-      {showInward && (
+      {showInwardModal && (
         <InwardModal 
-          onClose={() => { setShowInward(false); setEditingInward(null); }} 
+          onClose={() => { setShowInwardModal(false); setEditingInward(null); }} 
           onSaved={handleSaved}
           varieties={varieties}
           showToast={showToast}
@@ -428,9 +447,9 @@ const Stocks = ({ user, showToast }) => {
         />
       )}
 
-      {showOutward && (
+      {showOutwardModal && (
         <OutwardModal 
-          onClose={() => { setShowOutward(false); setEditingOutward(null); }} 
+          onClose={() => { setShowOutwardModal(false); setEditingOutward(null); }} 
           onSaved={handleSaved}
           varieties={varieties}
           showToast={showToast}

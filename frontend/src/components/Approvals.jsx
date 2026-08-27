@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getApprovals, approveRequest, rejectRequest, getParties, getVarieties } from '../api';
 import CustomConfirmModal from './CustomConfirmModal';
+import { formatDate, formatINR, formatBags } from '../utils/formatters';
 
 const Approvals = ({ showToast }) => {
   const [requests, setRequests] = useState([]);
@@ -107,121 +108,134 @@ const Approvals = ({ showToast }) => {
     if (k === 'lf_toggle') {
       return v ? 'Yes' : 'No';
     }
+    if (k === 'rate' || k === 'total_value' || k === 'lf_amount') {
+      return formatINR(v);
+    }
+    if (k === 'date') {
+      return formatDate(v);
+    }
     return String(v);
   };
 
   return (
-    <div style={{ width: '100%', maxWidth: '100%', padding: '0 1.5rem' }}>
+    <div style={{ width: '100%', maxWidth: '1440px', margin: '0 auto' }}>
       <div className="card-hdr" style={{ marginBottom: '1.25rem' }}>
-        <h2 className="card-title" style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <i className="fas fa-clipboard-check" style={{ color: '#2563eb' }}></i> Edit &amp; Delete Approvals
-          <span style={{ fontSize: '0.82rem', background: '#fee2e2', color: '#991b1b', padding: '0.15rem 0.5rem', borderRadius: '9999px', fontWeight: 700 }}>
+        <h2 className="card-title" style={{ fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <i className="fas fa-clipboard-check" style={{ color: '#2563eb' }}></i> Staff Edit &amp; Delete Approvals
+          <span style={{ fontSize: '0.78rem', background: '#fee2e2', color: '#991b1b', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 800 }}>
             {requests.length} Pending
           </span>
         </h2>
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: '2rem' }}>Loading pending approvals...</div>}
-
-      {!loading && requests.length === 0 && (
-        <div className="card" style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-          <i className="fas fa-circle-check" style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '0.75rem' }}></i>
-          <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>No pending approval requests.</p>
-          <p style={{ fontSize: '0.82rem', marginTop: '0.25rem' }}>All staff edits and deletions are fully processed.</p>
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+          <i className="fas fa-spinner fa-spin fa-2x"></i>
+          <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>Loading pending approvals...</p>
         </div>
       )}
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="tbl-wrap" style={{ overflowX: 'auto' }}>
-          <table style={{ tableLayout: 'auto', width: '100%', fontSize: '0.74rem' }}>
-            <thead>
-              <tr>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '4%' }}>SL<br/>No</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Type</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Action</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '12%' }}>Invoice No</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '9%' }}>Date</th>
-                <th style={{ padding: '0.4rem 0.3rem', width: '14%' }}>Party</th>
-                <th style={{ padding: '0.4rem 0.3rem', width: '12%' }}>Variety</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '6%' }}>Bags</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'right', width: '9%' }}>Total Value</th>
-                <th style={{ padding: '0.4rem 0.3rem', width: '18%' }}>Details / Changes</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Requested By</th>
-                <th style={{ padding: '0.4rem 0.3rem', textAlign: 'center', width: '8%' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((req, idx) => {
-                const isDelete = req.action_type === 'DELETE';
-                const rowBg = isDelete ? '#fee2e2' : '#fef08a';
-                return (
-                  <tr key={req.id} style={{ backgroundColor: rowBg }}>
-                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'center' }}>{idx + 1}</td>
-                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center' }}>
-                      <span className={`role-pill ${req.target_model === 'OUTWARD' ? 'role-owner' : 'role-staff'}`} style={{ fontSize: '0.62rem', padding: '1px 6px' }}>
-                        {req.target_model}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center' }}>
-                      <span style={{ fontSize: '0.62rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', color: '#fff', backgroundColor: isDelete ? '#dc2626' : '#d97706' }}>
-                        {req.action_type}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'center', color: '#2563eb' }}>
-                      {req.target_details?.invoice_no || `#${req.target_id}`}
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      {req.target_details?.date || '-'}
-                    </td>
-                    <td className="wrap-text" style={{ padding: '0.4rem 0.3rem', fontWeight: 600 }}>
-                      {req.target_details?.party_name || '-'}
-                    </td>
-                    <td className="wrap-text" style={{ padding: '0.4rem 0.3rem', fontWeight: 600 }}>
-                      {req.target_details?.variety_name || '-'}
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'center', color: '#2563eb' }}>
-                      {req.target_details?.bags || '-'}
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', fontWeight: 700, textAlign: 'right', color: '#10b981' }}>
-                      {req.target_details?.total_value ? `₹${Number(req.target_details.total_value).toLocaleString('en-IN')}` : '-'}
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', fontSize: '0.7rem' }}>
-                      {isDelete ? (
-                        <span style={{ color: '#991b1b', fontWeight: 700 }}>
-                          <i className="fas fa-trash"></i> Requesting permanent deletion of record
-                        </span>
-                      ) : (
-                        req.proposed_data && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                            {Object.entries(req.proposed_data).map(([k, v]) => (
-                              <div key={k}>
-                                <span style={{ color: '#64748b' }}>{formatKeyName(k)}:</span> <strong style={{ color: '#b45309' }}>{getDisplayValue(k, v)}</strong>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      )}
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem', textAlign: 'center', fontWeight: 700, color: '#475569' }}>
-                      {req.requested_by_username || 'Staff'}
-                    </td>
-                    <td style={{ padding: '0.4rem 0.3rem' }}>
-                      <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
-                        <button className="btn btn-green btn-sm" title="Approve" onClick={() => handleApprove(req.id)} style={{ padding: '2px 6px', fontSize: '0.68rem' }}>
-                          <i className="fas fa-check"></i>
-                        </button>
-                        <button className="btn btn-red btn-sm" title="Reject" onClick={() => handleReject(req.id)} style={{ padding: '2px 6px', fontSize: '0.68rem' }}>
-                          <i className="fas fa-times"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {!loading && requests.length === 0 && (
+        <div className="card" style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
+          <i className="fas fa-circle-check" style={{ fontSize: '2.5rem', color: '#10b981', marginBottom: '0.75rem' }}></i>
+          <p style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>No pending approval requests.</p>
+          <p style={{ fontSize: '0.84rem', marginTop: '0.25rem' }}>All staff transaction edits and deletions are fully processed.</p>
         </div>
-      </div>
+      )}
+
+      {requests.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="tbl-wrap">
+            <table style={{ fontSize: '0.78rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'center', width: '30px' }}>SL</th>
+                  <th style={{ textAlign: 'center' }}>Type</th>
+                  <th style={{ textAlign: 'center' }}>Action</th>
+                  <th>Invoice No</th>
+                  <th>Date (DD/MM/YYYY)</th>
+                  <th>Party</th>
+                  <th>Variety</th>
+                  <th style={{ textAlign: 'center' }}>Bags</th>
+                  <th style={{ textAlign: 'right' }}>Total Value</th>
+                  <th>Details / Changes</th>
+                  <th style={{ textAlign: 'center' }}>Requested By</th>
+                  <th style={{ textAlign: 'center' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((req, idx) => {
+                  const isDelete = req.action_type === 'DELETE';
+                  const rowBg = isDelete ? '#fee2e2' : '#fef08a';
+                  return (
+                    <tr key={req.id} style={{ backgroundColor: rowBg }}>
+                      <td style={{ fontWeight: 600, textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`role-pill ${req.target_model === 'OUTWARD' ? 'role-owner' : 'role-staff'}`}>
+                          {req.target_model}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.64rem', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', color: '#fff', backgroundColor: isDelete ? '#dc2626' : '#d97706' }}>
+                          {req.action_type}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#2563eb' }}>
+                        {req.target_details?.invoice_no || `#${req.target_id}`}
+                      </td>
+                      <td style={{ color: '#475569', fontWeight: 600 }}>
+                        {formatDate(req.target_details?.date)}
+                      </td>
+                      <td className="wrap-text" style={{ fontWeight: 600, color: '#0f172a' }}>
+                        {req.target_details?.party_name || '-'}
+                      </td>
+                      <td className="wrap-text" style={{ fontWeight: 600, color: '#0f172a' }}>
+                        {req.target_details?.variety_name || '-'}
+                      </td>
+                      <td style={{ fontWeight: 700, textAlign: 'center', color: '#2563eb' }}>
+                        {formatBags(req.target_details?.bags)}
+                      </td>
+                      <td style={{ fontWeight: 700, textAlign: 'right', color: '#059669' }}>
+                        {req.target_details?.total_value ? formatINR(req.target_details.total_value) : '-'}
+                      </td>
+                      <td style={{ fontSize: '0.74rem' }}>
+                        {isDelete ? (
+                          <span style={{ color: '#991b1b', fontWeight: 700 }}>
+                            <i className="fas fa-trash" style={{ marginRight: '4px' }}></i> Requesting permanent deletion
+                          </span>
+                        ) : (
+                          req.proposed_data && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {Object.entries(req.proposed_data).map(([k, v]) => (
+                                <div key={k}>
+                                  <span style={{ color: '#64748b' }}>{formatKeyName(k)}:</span> <strong style={{ color: '#b45309' }}>{getDisplayValue(k, v)}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, color: '#475569' }}>
+                        {req.requested_by_username || 'Staff'}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'center' }}>
+                          <button className="btn btn-green btn-sm" title="Approve" onClick={() => handleApprove(req.id)}>
+                            <i className="fas fa-check"></i>
+                          </button>
+                          <button className="btn btn-red btn-sm" title="Reject" onClick={() => handleReject(req.id)}>
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <CustomConfirmModal 
         isOpen={confirmState.isOpen}

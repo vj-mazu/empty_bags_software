@@ -58,7 +58,7 @@ class Variety(models.Model):
 
 class Inward(models.Model):
     sl_no = models.IntegerField(unique=True, editable=False)
-    invoice_no = models.CharField(max_length=50, unique=True, editable=False)
+    invoice_no = models.CharField(max_length=50, unique=True)
     date = models.DateField(default=timezone.now)
     party = models.ForeignKey(Party, on_delete=models.PROTECT, related_name='inwards')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='inwards')
@@ -84,14 +84,10 @@ class Inward(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.sl_no:
-            # Performance fix: use atomic SELECT FOR UPDATE to avoid race condition
-            # and avoid slow MAX scan on 10M+ records
             from django.db import transaction
             with transaction.atomic():
                 last = Inward.objects.select_for_update().order_by('-sl_no').values_list('sl_no', flat=True).first()
                 self.sl_no = (last or 0) + 1
-        if not self.invoice_no:
-            self.invoice_no = f"MI-IN-{self.date.strftime('%Y%m%d')}-{self.sl_no:04d}"
         
         self.total_kgs = Decimal(str(self.bags)) * Decimal(str(self.variety.kgs_per_bag))
         base_val = Decimal(str(self.bags)) * Decimal(str(self.rate))
@@ -112,7 +108,7 @@ class Inward(models.Model):
 
 class Outward(models.Model):
     sl_no = models.IntegerField(unique=True, editable=False)
-    invoice_no = models.CharField(max_length=50, unique=True, editable=False)
+    invoice_no = models.CharField(max_length=50, unique=True)
     date = models.DateField(default=timezone.now)
     party = models.ForeignKey(Party, on_delete=models.PROTECT, related_name='outwards')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='outwards')
@@ -121,6 +117,9 @@ class Outward(models.Model):
     total_kgs = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), editable=False)
     lf_toggle = models.BooleanField(default=False, verbose_name="LF Toggle (Yes/No)")
     lf_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Total LF charge amount entered directly by the user")
+    is_transfer = models.BooleanField(default=False, verbose_name="Transfer Toggle (Yes/No)")
+    from_place_name = models.CharField(max_length=150, blank=True, null=True, help_text="Origin place name (manual entry)")
+    to_place = models.ForeignKey(Place, on_delete=models.SET_NULL, null=True, blank=True, related_name='transfer_outwards')
     total_value = models.DecimalField(max_digits=14, decimal_places=2, editable=False)
     per_bag_cost = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), editable=False, help_text="Auto-calculated actual cost per bag")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='outward_entries')
@@ -134,6 +133,7 @@ class Outward(models.Model):
             models.Index(fields=['-date']),
             models.Index(fields=['date', 'variety']),
             models.Index(fields=['created_by']),
+            models.Index(fields=['to_place', '-date']),
         ]
 
     def save(self, *args, **kwargs):
@@ -142,8 +142,6 @@ class Outward(models.Model):
             with transaction.atomic():
                 last = Outward.objects.select_for_update().order_by('-sl_no').values_list('sl_no', flat=True).first()
                 self.sl_no = (last or 0) + 1
-        if not self.invoice_no:
-            self.invoice_no = f"MI-OUT-{self.date.strftime('%Y%m%d')}-{self.sl_no:04d}"
 
         self.total_kgs = Decimal(str(self.bags)) * Decimal(str(self.variety.kgs_per_bag))
         base_val = Decimal(str(self.bags)) * Decimal(str(self.rate))
