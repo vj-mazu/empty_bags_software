@@ -52,11 +52,23 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
           </button>
           
           {dropdownOpen && (
-            <div className="dropdown-menu" style={{ position: 'absolute', top: '100%', left: 0, backgroundColor: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', borderRadius: '6px', padding: '0.4rem 0', minWidth: '160px', zIndex: 100, border: '1px solid #e2e8f0' }}>
-              <div className="dropdown-item" onClick={() => handleMasterClick('party')}><i className="fas fa-address-book"></i> Party Master</div>
-              <div className="dropdown-item" onClick={() => handleMasterClick('variety')}><i className="fas fa-wheat-awn"></i> Variety Master</div>
-              <div className="dropdown-item" onClick={() => handleMasterClick('place')}><i className="fas fa-warehouse"></i> Place Master</div>
-              <div className="dropdown-item" onClick={() => handleMasterClick('user')}><i className="fas fa-user-gear"></i> User Management</div>
+            <div className="nav-dropdown-menu">
+              <div className="nav-dropdown-item" onClick={() => handleMasterClick('party')}>
+                <i className="fas fa-address-book" style={{ color: '#2563eb' }}></i>
+                <span>Party Master</span>
+              </div>
+              <div className="nav-dropdown-item" onClick={() => handleMasterClick('variety')}>
+                <i className="fas fa-wheat-awn" style={{ color: '#10b981' }}></i>
+                <span>Variety Master</span>
+              </div>
+              <div className="nav-dropdown-item" onClick={() => handleMasterClick('place')}>
+                <i className="fas fa-warehouse" style={{ color: '#f59e0b' }}></i>
+                <span>Place Master</span>
+              </div>
+              <div className="nav-dropdown-item" onClick={() => handleMasterClick('user')}>
+                <i className="fas fa-user-gear" style={{ color: '#8b5cf6' }}></i>
+                <span>User Management</span>
+              </div>
             </div>
           )}
         </div>
