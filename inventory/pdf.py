@@ -2,6 +2,7 @@ import io
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 def format_date_dmy(d_str):
     """Formats date string to Day/Month/Year (DD/MM/YYYY)."""
@@ -13,25 +14,39 @@ def format_date_dmy(d_str):
         return f"{parts[2]}/{parts[1]}/{parts[0]}"
     return s
 
-def wrap_clean(text, max_len=24):
-    """Wraps text into clean multi-line list without garbling or truncating."""
-    s = str(text or '-').strip()
-    if len(s) <= max_len:
-        return [s]
-    words = s.split(' ')
+def wrap_text_by_width(text, font_name="Helvetica", font_size=7.0, max_width=100):
+    """Accurately wraps text based on point width so ZERO characters or words are ever dropped."""
+    if not text:
+        return ["-"]
+    text = str(text).strip()
+    words = text.split()
+    if not words:
+        return ["-"]
+    
     lines = []
     current_line = ""
     for w in words:
-        if not current_line:
-            current_line = w
-        elif len(current_line + " " + w) <= max_len:
-            current_line += " " + w
+        test_line = (current_line + " " + w).strip() if current_line else w
+        if stringWidth(test_line, font_name, font_size) <= max_width:
+            current_line = test_line
         else:
-            lines.append(current_line)
-            current_line = w
+            if current_line:
+                lines.append(current_line)
+                current_line = w
+            else:
+                # Word itself is wider than max_width, split by characters
+                sub_w = ""
+                for char in w:
+                    if stringWidth(sub_w + char, font_name, font_size) <= max_width:
+                        sub_w += char
+                    else:
+                        if sub_w:
+                            lines.append(sub_w)
+                        sub_w = char
+                current_line = sub_w
     if current_line:
         lines.append(current_line)
-    return lines[:3]
+    return lines if lines else [text]
 
 def draw_invoice_slip(c, x, y, width, height, title, entry_data, logo_path=None):
     """Draws a single professional invoice slip within designated bounding box."""
@@ -243,8 +258,8 @@ def generate_stocks_summary_pdf(title, date_str, inwards_data, outwards_data):
 
             party_name = str(r.get('party_name', '-'))
             
-            variety_lines = wrap_clean(v_name, 26)
-            party_lines = wrap_clean(party_name, 22)
+            party_lines = wrap_text_by_width(party_name, "Helvetica", 7.0, col_widths[2] - 6)
+            variety_lines = wrap_text_by_width(v_name, "Helvetica", 7.0, col_widths[3] - 6)
             max_lines = max(len(variety_lines), len(party_lines), 1)
             row_h = 13 if max_lines == 1 else (max_lines * 9.5 + 4)
 
@@ -391,8 +406,8 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
 
             party_name = str(r.get('latest_party', '-'))
 
-            variety_lines = wrap_clean(v_name, 26)
-            party_lines = wrap_clean(party_name, 22)
+            variety_lines = wrap_text_by_width(v_name, "Helvetica", 7.0, col_widths[1] - 6)
+            party_lines = wrap_text_by_width(party_name, "Helvetica", 7.0, col_widths[2] - 6)
             max_lines = max(len(variety_lines), len(party_lines), 1)
             row_h = 13 if max_lines == 1 else (max_lines * 9.5 + 4)
 
