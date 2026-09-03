@@ -15,6 +15,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
   const [lfOn, setLfOn] = useState(false);
   const [lfAmount, setLfAmount] = useState('');
   const [isTransfer, setIsTransfer] = useState(false);
+  const [fromPlaceId, setFromPlaceId] = useState('');
   const [fromPlaceName, setFromPlaceName] = useState('');
   const [toPlaceId, setToPlaceId] = useState('');
   const [error, setError] = useState('');
@@ -41,6 +42,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
       setLfOn(editItem.lf_toggle || false);
       setLfAmount(editItem.lf_amount || '');
       setIsTransfer(editItem.is_transfer || false);
+      setFromPlaceId(editItem.from_place ? String(editItem.from_place) : '');
       setFromPlaceName(editItem.from_place_name || '');
       setToPlaceId(editItem.to_place ? String(editItem.to_place) : '');
     }
@@ -73,6 +75,10 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
       setLoading(true);
       setError('');
       
+      const resolvedFromPlaceName = fromPlaceId
+        ? (places.find(p => String(p.id) === String(fromPlaceId))?.name || fromPlaceName || 'Main Mill')
+        : (fromPlaceName || 'Main Mill');
+
       const payload = {
         invoice_no: invoiceNo.trim(),
         date,
@@ -83,7 +89,8 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
         lf_toggle: lfOn,
         lf_amount: numLfAmount,
         is_transfer: isTransfer,
-        from_place_name: isTransfer ? (fromPlaceName || 'Main Mill') : null,
+        from_place: fromPlaceId || null,
+        from_place_name: resolvedFromPlaceName,
         to_place: isTransfer ? toPlaceId : null
       };
 
@@ -105,7 +112,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
         }
       } else {
         await createOutward(payload);
-        if (showToast) showToast('Outward entry created successfully!');
+        if (showToast) showToast(isTransfer ? 'Transfer outward entry created!' : 'Outward sale recorded successfully!');
       }
       if (onSaved) onSaved();
       onClose();
@@ -211,7 +218,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
                 style={{ background: '#f8fafc', fontWeight: 700, color: '#2563eb' }} 
               />
             </div>
-
+            
             <div className="form-group">
               <label>Rate per Bag (₹)</label>
               <input 
@@ -227,9 +234,9 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
             </div>
           </div>
 
-          {/* Transfer & LF Handling Options */}
+          {/* Transfer & Location & LF Handling Options */}
           <div style={{ background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: isTransfer || lfOn ? '0.85rem' : 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.85rem' }}>
               <div className="toggle-row">
                 <label className="toggle">
                   <input type="checkbox" checked={isTransfer} onChange={e => setIsTransfer(e.target.checked)} />
@@ -249,7 +256,8 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
               </div>
             </div>
 
-            {isTransfer && (
+            {/* If Inter-Branch Transfer: From & To Places */}
+            {isTransfer ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.85rem', background: '#eff6ff', padding: '0.85rem', borderRadius: '8px', border: '1px solid #bfdbfe', marginBottom: lfOn ? '0.85rem' : 0 }}>
                 <div className="form-group">
                   <label style={{ color: '#1e40af', fontWeight: 700 }}>From Location</label>
@@ -271,6 +279,29 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
                     required={isTransfer}
                   >
                     <option value="">Select Destination</option>
+                    {places.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              /* If Direct Sale / Location Sale: Sold from Branch */
+              <div style={{ background: '#f1f5f9', padding: '0.75rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: lfOn ? '0.85rem' : 0 }}>
+                <div className="form-group">
+                  <label style={{ color: '#334155', fontWeight: 700 }}>
+                    <i className="fas fa-location-dot" style={{ color: '#2563eb', marginRight: '4px' }}></i> Sold From Location / Branch
+                  </label>
+                  <select 
+                    className="input" 
+                    value={fromPlaceId} 
+                    onChange={e => {
+                      setFromPlaceId(e.target.value);
+                      const sel = places.find(p => String(p.id) === e.target.value);
+                      setFromPlaceName(sel ? sel.name : 'Main Mill');
+                    }}
+                  >
+                    <option value="">Main Mill (Default)</option>
                     {places.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}

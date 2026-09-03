@@ -105,7 +105,7 @@ class OutwardSerializer(serializers.ModelSerializer):
             'id', 'sl_no', 'invoice_no', 'date', 'party', 'party_name', 
             'variety', 'variety_name', 'kgs_per_bag', 'rate', 'bags', 
             'total_kgs', 'lf_toggle', 'lf_amount', 'is_transfer', 
-            'from_place_name', 'to_place', 'to_place_name', 'total_value', 
+            'from_place', 'from_place_name', 'to_place', 'to_place_name', 'total_value', 
             'per_bag_cost', 'created_by', 'created_by_name', 'created_at'
         ]
 

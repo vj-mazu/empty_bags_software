@@ -118,6 +118,7 @@ class Outward(models.Model):
     lf_toggle = models.BooleanField(default=False, verbose_name="LF Toggle (Yes/No)")
     lf_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), help_text="Total LF charge amount entered directly by the user")
     is_transfer = models.BooleanField(default=False, verbose_name="Transfer Toggle (Yes/No)")
+    from_place = models.ForeignKey(Place, on_delete=models.SET_NULL, null=True, blank=True, related_name='source_outwards')
     from_place_name = models.CharField(max_length=150, blank=True, null=True, help_text="Origin place name (manual entry)")
     to_place = models.ForeignKey(Place, on_delete=models.SET_NULL, null=True, blank=True, related_name='transfer_outwards')
     total_value = models.DecimalField(max_digits=14, decimal_places=2, editable=False)

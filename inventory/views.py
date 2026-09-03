@@ -846,18 +846,39 @@ class ExportStocksPDFView(APIView):
 class ExportLedgerPDFView(APIView):
     def get(self, request):
         from .pdf import generate_ledger_summary_pdf
-        # Performance fix: reuse the already-optimized ledger view data
-        # The view already uses batched SQL aggregations
         ledger_view = EmptyBagsStockLedgerAPIView()
         res = ledger_view.get(request)
         inwards_data = res.data.get('inwards', [])
         outwards_data = res.data.get('outwards', [])
         
+        type_param = request.query_params.get('type') or request.query_params.get('view_mode')
+        if type_param == 'inward':
+            outwards_data = []
+        elif type_param == 'outward':
+            inwards_data = []
+
+        variety_id = request.query_params.get('variety_id')
+        var_name = ""
+        if variety_id:
+            try:
+                v_obj = Variety.objects.get(id=variety_id)
+                var_name = f" - {v_obj.name}"
+            except Exception:
+                pass
+
         date_str = request.query_params.get('month') or request.query_params.get('start_date') or "All Records"
-        pdf_bytes = generate_ledger_summary_pdf("Empty Bags Ledger Report", date_str, inwards_data, outwards_data)
+        if request.query_params.get('start_date') and request.query_params.get('end_date'):
+            date_str = f"{request.query_params.get('start_date')} to {request.query_params.get('end_date')}"
+        if var_name:
+            date_str += var_name
+
+        report_title = "Empty Bags Inward Ledger" if type_param == 'inward' else ("Empty Bags Outward Ledger" if type_param == 'outward' else "Empty Bags Ledger Report")
+
+        pdf_bytes = generate_ledger_summary_pdf(f"{report_title}{var_name}", date_str, inwards_data, outwards_data)
         
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="Empty_Bags_Ledger_{date_str}.pdf"'
+        filename = f"Empty_Bags_{type_param or 'Ledger'}_{date_str.replace(' ', '_')}.pdf"
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
         return response
 
 
@@ -947,6 +968,7 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
 class PlaceStockLedgerAPIView(APIView):
     """Calculates per-place stock transfers received, sales/usage, and remaining balance."""
     def get(self, request):
+        from django.db.models import Q
         place_id = request.query_params.get('place_id')
         places = Place.objects.all()
         if place_id:
@@ -957,7 +979,10 @@ class PlaceStockLedgerAPIView(APIView):
             transfers_qs = Outward.objects.filter(is_transfer=True, to_place=p).select_related('variety', 'party')
             transferred_bags = transfers_qs.aggregate(tot=Sum('bags'))['tot'] or 0
 
-            sales_qs = Outward.objects.filter(party__place=p).select_related('variety', 'party')
+            # Dispatches / Sales originating from this branch or from a customer registered at this place
+            sales_qs = Outward.objects.filter(
+                Q(from_place=p) | Q(from_place_name__iexact=p.name) | Q(party__place=p, is_transfer=False)
+            ).distinct().select_related('variety', 'party')
             sales_bags = sales_qs.aggregate(tot=Sum('bags'))['tot'] or 0
 
             remaining_bags = transferred_bags - sales_bags
@@ -968,7 +993,7 @@ class PlaceStockLedgerAPIView(APIView):
                     'id': t.id,
                     'invoice_no': t.invoice_no,
                     'date': str(t.date),
-                    'from_place': t.from_place_name or 'Main Mill',
+                    'from_place': t.from_place_name or (t.from_place.name if t.from_place else 'Main Mill'),
                     'to_place': p.name,
                     'variety_name': t.variety.name if t.variety else '-',
                     'bags': t.bags,

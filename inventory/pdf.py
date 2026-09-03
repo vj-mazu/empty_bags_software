@@ -501,8 +501,10 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
         c.drawRightString(15 + sum(col_widths) - 4, cur_y - 10, f"Rs. {tot_val:,.2f}")
         cur_y -= 25
 
-    draw_ledger_section("INWARD", inwards_data, "#10b981", True)
-    draw_ledger_section("OUTWARD", outwards_data, "#ef4444", False)
+    if inwards_data:
+        draw_ledger_section("INWARD", inwards_data, "#10b981", True)
+    if outwards_data:
+        draw_ledger_section("OUTWARD", outwards_data, "#ef4444", False)
 
     c.showPage()
     c.save()

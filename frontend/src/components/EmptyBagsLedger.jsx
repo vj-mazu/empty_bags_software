@@ -84,6 +84,8 @@ const EmptyBagsLedger = () => {
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
     }
+    if (viewMode === 'inward') params.type = 'inward';
+    else if (viewMode === 'outward') params.type = 'outward';
     downloadLedgerPdf(params);
   };
 
