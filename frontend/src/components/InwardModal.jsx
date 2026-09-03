@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createInward, updateInward, createApprovalRequest, getParties, getVarieties } from '../api';
 import { formatINR } from '../utils/formatters';
+import SearchableSelect from './SearchableSelect';
 
 const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: initialVarieties, showToast, editItem, user }) => {
   const [parties, setParties] = useState(initialParties || []);
@@ -144,22 +145,24 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
             
             <div className="form-group">
               <label>Party / Supplier</label>
-              <select className="input" value={partyId} onChange={e => setPartyId(e.target.value)} required>
-                <option value="">Select Party</option>
-                {parties.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} {p.shortcut_name ? `(${p.shortcut_name})` : ''}</option>
-                ))}
-              </select>
+              <SearchableSelect 
+                options={parties.map(p => ({ id: p.id, name: `${p.name} ${p.shortcut_name ? `(${p.shortcut_name})` : ''}` }))}
+                value={partyId}
+                onChange={setPartyId}
+                placeholder="Search & Select Party..."
+                required={true}
+              />
             </div>
             
             <div className="form-group">
               <label>Variety</label>
-              <select className="input" value={varietyId} onChange={e => setVarietyId(e.target.value)} required>
-                <option value="">Select Variety</option>
-                {varieties.map(v => (
-                  <option key={v.id} value={v.id}>{v.name} ({v.kgs_per_bag} kg)</option>
-                ))}
-              </select>
+              <SearchableSelect 
+                options={varieties.map(v => ({ id: v.id, name: `${v.name} (${v.kgs_per_bag} kg)` }))}
+                value={varietyId}
+                onChange={setVarietyId}
+                placeholder="Search & Select Variety..."
+                required={true}
+              />
             </div>
             
             <div className="form-group">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createOutward, updateOutward, createApprovalRequest, getParties, getVarieties, getPlaces } from '../api';
 import { formatINR } from '../utils/formatters';
+import SearchableSelect from './SearchableSelect';
 
 const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: initialVarieties, showToast, editItem, user }) => {
   const [parties, setParties] = useState(initialParties || []);
@@ -15,9 +16,13 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
   const [lfOn, setLfOn] = useState(false);
   const [lfAmount, setLfAmount] = useState('');
   const [isTransfer, setIsTransfer] = useState(false);
+  
+  // Stock origin type: 'mill' (Mother India) or 'branch' (From Branch/Place Stock)
+  const [stockOriginType, setStockOriginType] = useState('mill');
   const [fromPlaceId, setFromPlaceId] = useState('');
-  const [fromPlaceName, setFromPlaceName] = useState('');
+  const [fromPlaceName, setFromPlaceName] = useState('Mother India');
   const [toPlaceId, setToPlaceId] = useState('');
+  
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -42,8 +47,17 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
       setLfOn(editItem.lf_toggle || false);
       setLfAmount(editItem.lf_amount || '');
       setIsTransfer(editItem.is_transfer || false);
-      setFromPlaceId(editItem.from_place ? String(editItem.from_place) : '');
-      setFromPlaceName(editItem.from_place_name || '');
+      
+      if (editItem.from_place) {
+        setStockOriginType('branch');
+        setFromPlaceId(String(editItem.from_place));
+        setFromPlaceName(editItem.from_place_name || '');
+      } else {
+        setStockOriginType('mill');
+        setFromPlaceId('');
+        setFromPlaceName(editItem.from_place_name || 'Mother India');
+      }
+      
       setToPlaceId(editItem.to_place ? String(editItem.to_place) : '');
     }
   }, [editItem]);
@@ -70,14 +84,28 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
       setError('Please select a destination place / branch for the transfer');
       return;
     }
+    if (!isTransfer && stockOriginType === 'branch' && !fromPlaceId) {
+      setError('Please select which branch location to sell from');
+      return;
+    }
 
     try {
       setLoading(true);
       setError('');
       
-      const resolvedFromPlaceName = fromPlaceId
-        ? (places.find(p => String(p.id) === String(fromPlaceId))?.name || fromPlaceName || 'Main Mill')
-        : (fromPlaceName || 'Main Mill');
+      let resolvedFromPlaceId = null;
+      let resolvedFromPlaceName = 'Mother India';
+
+      if (isTransfer) {
+        resolvedFromPlaceName = fromPlaceName || 'Mother India';
+      } else if (stockOriginType === 'branch') {
+        resolvedFromPlaceId = fromPlaceId || null;
+        const matched = places.find(p => String(p.id) === String(fromPlaceId));
+        resolvedFromPlaceName = matched ? matched.name : (fromPlaceName || 'Branch');
+      } else {
+        resolvedFromPlaceId = null;
+        resolvedFromPlaceName = 'Mother India';
+      }
 
       const payload = {
         invoice_no: invoiceNo.trim(),
@@ -89,7 +117,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
         lf_toggle: lfOn,
         lf_amount: numLfAmount,
         is_transfer: isTransfer,
-        from_place: fromPlaceId || null,
+        from_place: resolvedFromPlaceId,
         from_place_name: resolvedFromPlaceName,
         to_place: isTransfer ? toPlaceId : null
       };
@@ -166,22 +194,24 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
             
             <div className="form-group">
               <label>Customer / Party</label>
-              <select className="input" value={partyId} onChange={e => setPartyId(e.target.value)} required>
-                <option value="">Select Party</option>
-                {parties.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} {p.shortcut_name ? `(${p.shortcut_name})` : ''}</option>
-                ))}
-              </select>
+              <SearchableSelect 
+                options={parties.map(p => ({ id: p.id, name: `${p.name} ${p.shortcut_name ? `(${p.shortcut_name})` : ''}` }))}
+                value={partyId}
+                onChange={setPartyId}
+                placeholder="Search & Select Party..."
+                required={true}
+              />
             </div>
             
             <div className="form-group">
               <label>Variety</label>
-              <select className="input" value={varietyId} onChange={e => setVarietyId(e.target.value)} required>
-                <option value="">Select Variety</option>
-                {varieties.map(v => (
-                  <option key={v.id} value={v.id}>{v.name} ({v.kgs_per_bag} kg)</option>
-                ))}
-              </select>
+              <SearchableSelect 
+                options={varieties.map(v => ({ id: v.id, name: `${v.name} (${v.kgs_per_bag} kg)` }))}
+                value={varietyId}
+                onChange={setVarietyId}
+                placeholder="Search & Select Variety..."
+                required={true}
+              />
             </div>
             
             <div className="form-group">
@@ -266,47 +296,68 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
                     className="input" 
                     value={fromPlaceName} 
                     onChange={e => setFromPlaceName(e.target.value)} 
-                    placeholder="e.g. Main Mill" 
-                    required={isTransfer}
+                    placeholder="Mother India" 
                   />
                 </div>
                 <div className="form-group">
                   <label style={{ color: '#1e40af', fontWeight: 700 }}>To Branch / Place</label>
-                  <select 
-                    className="input" 
-                    value={toPlaceId} 
-                    onChange={e => setToPlaceId(e.target.value)} 
+                  <SearchableSelect 
+                    options={places}
+                    value={toPlaceId}
+                    onChange={setToPlaceId}
+                    placeholder="Search & Select Destination..."
                     required={isTransfer}
-                  >
-                    <option value="">Select Destination</option>
-                    {places.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
             ) : (
-              /* If Direct Sale / Location Sale: Sold from Branch */
+              /* If Direct Sale / Location Sale: Radio Button for Stock Source */
               <div style={{ background: '#f1f5f9', padding: '0.75rem 0.85rem', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: lfOn ? '0.85rem' : 0 }}>
-                <div className="form-group">
-                  <label style={{ color: '#334155', fontWeight: 700 }}>
-                    <i className="fas fa-location-dot" style={{ color: '#2563eb', marginRight: '4px' }}></i> Sold From Location / Branch
+                <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'block' }}>
+                  <i className="fas fa-location-dot" style={{ color: '#2563eb', marginRight: '4px' }}></i> Stock Origin / Sold From
+                </label>
+                <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: stockOriginType === 'branch' ? '0.65rem' : 0 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.86rem', fontWeight: 600, color: stockOriginType === 'mill' ? '#2563eb' : '#475569' }}>
+                    <input 
+                      type="radio" 
+                      name="stockOrigin" 
+                      checked={stockOriginType === 'mill'} 
+                      onChange={() => {
+                        setStockOriginType('mill');
+                        setFromPlaceId('');
+                        setFromPlaceName('Mother India');
+                      }} 
+                    />
+                    <span>Mother India (Main Mill)</span>
                   </label>
-                  <select 
-                    className="input" 
-                    value={fromPlaceId} 
-                    onChange={e => {
-                      setFromPlaceId(e.target.value);
-                      const sel = places.find(p => String(p.id) === e.target.value);
-                      setFromPlaceName(sel ? sel.name : 'Main Mill');
-                    }}
-                  >
-                    <option value="">Main Mill (Default)</option>
-                    {places.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.86rem', fontWeight: 600, color: stockOriginType === 'branch' ? '#2563eb' : '#475569' }}>
+                    <input 
+                      type="radio" 
+                      name="stockOrigin" 
+                      checked={stockOriginType === 'branch'} 
+                      onChange={() => {
+                        setStockOriginType('branch');
+                      }} 
+                    />
+                    <span>From Branch / Place Stock</span>
+                  </label>
                 </div>
+
+                {stockOriginType === 'branch' && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <SearchableSelect 
+                      options={places}
+                      value={fromPlaceId}
+                      onChange={(pId, pName) => {
+                        setFromPlaceId(pId);
+                        setFromPlaceName(pName);
+                      }}
+                      placeholder="Search & Select Branch Place..."
+                      required={stockOriginType === 'branch'}
+                    />
+                  </div>
+                )}
               </div>
             )}
 

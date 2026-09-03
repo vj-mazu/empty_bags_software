@@ -20,8 +20,15 @@ const EmptyBagsLedger = () => {
   const [selectedVarietyId, setSelectedVarietyId] = useState(null);
 
   useEffect(() => {
-    Promise.all([fetchVarieties(), fetchLedger()]);
+    fetchVarieties();
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchLedger();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [varietyId, invoiceNo, month, startDate, endDate]);
 
   const fetchVarieties = async () => {
     try {
@@ -64,15 +71,6 @@ const EmptyBagsLedger = () => {
     setEndDate('');
     setMonth('');
     setInvoiceNo('');
-    setLoading(true);
-    getLedger({}).then(res => {
-      setInwardRows(res.inwards || []);
-      setOutwardRows(res.outwards || []);
-      setLoading(false);
-    }).catch(err => {
-      console.error(err);
-      setLoading(false);
-    });
   };
 
   const handleDownloadPdf = () => {
@@ -199,30 +197,25 @@ const EmptyBagsLedger = () => {
             />
           </div>
 
-          {/* Variety Filter */}
-          <div className="form-group" style={{ minWidth: '170px', flex: 1.5 }}>
+          {/* Variety Filter with Live Search */}
+          <div className="form-group" style={{ minWidth: '180px', flex: 1.5 }}>
             <label>Filter Variety</label>
-            <select 
-              className="input" 
-              value={varietyId} 
-              onChange={(e) => setVarietyId(e.target.value)}
-            >
-              <option value="">All Varieties</option>
-              {varieties.map(v => (
-                <option key={v.id} value={v.id}>{v.name} ({v.kgs_per_bag} kg)</option>
-              ))}
-            </select>
+            <SearchableSelect 
+              options={[{ id: '', name: 'All Varieties' }, ...varieties.map(v => ({ id: v.id, name: `${v.name} (${v.kgs_per_bag} kg)` }))]}
+              value={varietyId}
+              onChange={setVarietyId}
+              placeholder="All Varieties"
+            />
           </div>
 
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="btn btn-blue" onClick={handleApplyFilter}>
-              <i className="fas fa-search"></i> Apply
-            </button>
-            <button className="btn btn-ghost" onClick={handleClearFilter}>
-              Clear
-            </button>
-          </div>
+          {/* Action Button: Clear Filter (only shown if filters active) */}
+          {hasActiveFilters && (
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button className="btn btn-ghost" onClick={handleClearFilter} style={{ padding: '0.5rem 0.85rem' }}>
+                <i className="fas fa-times" style={{ marginRight: '4px' }}></i> Clear Filter
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

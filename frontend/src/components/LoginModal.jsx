@@ -80,12 +80,6 @@ export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
             {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
           </button>
         </form>
-
-        <div className="login-credentials-box">
-          <div className="cred-title">System Credentials:</div>
-          <div className="cred-line"><span>Staff Account:</span> <strong>staff1</strong> / <strong>staff123</strong></div>
-          <div className="cred-line"><span>Owner / Admin:</span> <strong>owner</strong> / <strong>owner123</strong></div>
-        </div>
       </div>
     </div>
   );
