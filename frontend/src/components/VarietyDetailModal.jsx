@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getVarietyLedger } from '../api';
+import { getVarietyLedger, downloadPdf } from '../api';
 import { formatDate, formatINR, formatBags } from '../utils/formatters';
 
 export default function VarietyDetailModal({ varietyId, onClose, initialFilters = {} }) {
@@ -151,7 +151,17 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
                           {t.type.toUpperCase()}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700, color: '#2563eb' }}>{t.invoice_no || '-'}</td>
+                      <td style={{ fontWeight: 700, color: '#2563eb' }}>
+                        {t.invoice_no ? (
+                          <span 
+                            onClick={() => downloadPdf(t.type, t.id)}
+                            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                            title="Click to view full-screen invoice slip"
+                          >
+                            {t.invoice_no}
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td style={{ color: '#475569', fontWeight: 600 }}>{formatDate(t.date)}</td>
                       <td style={{ fontWeight: 600, color: '#0f172a' }}>{t.party_name}</td>
                       <td style={{ textAlign: 'center', fontWeight: 700, color: t.type === 'inward' ? '#059669' : '#dc2626' }}>

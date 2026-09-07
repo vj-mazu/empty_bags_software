@@ -306,9 +306,15 @@ const Stocks = ({ user, showToast }) => {
                       <tr key={item.id} style={{ backgroundColor: rowBg }}>
                         <td style={{ fontWeight: 600, textAlign: 'center', color: '#64748b', padding: isSplit ? '4px 2px' : '6px 8px' }}>{index + 1}</td>
                         <td style={{ fontWeight: 700, color: '#2563eb', padding: isSplit ? '4px 4px' : '6px 8px' }}>
-                          <div>{item.invoice_no}</div>
+                          <span 
+                            onClick={() => handleDownloadPdf('inward', item.id)}
+                            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                            title="Click to view full-screen printable invoice"
+                          >
+                            {item.invoice_no}
+                          </span>
                           {isPending && (
-                            <span style={{ fontSize: '0.6rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', fontWeight: 800 }}>
+                            <span style={{ fontSize: '0.6rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', fontWeight: 800, marginLeft: '4px' }}>
                               PENDING
                             </span>
                           )}
@@ -385,9 +391,15 @@ const Stocks = ({ user, showToast }) => {
                       <tr key={item.id} style={{ backgroundColor: rowBg }}>
                         <td style={{ fontWeight: 600, textAlign: 'center', color: '#64748b', padding: isSplit ? '4px 2px' : '6px 8px' }}>{index + 1}</td>
                         <td style={{ fontWeight: 700, color: '#2563eb', padding: isSplit ? '4px 4px' : '6px 8px' }}>
-                          <div>{item.invoice_no}</div>
+                          <span 
+                            onClick={() => handleDownloadPdf('outward', item.id)}
+                            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                            title="Click to view full-screen printable invoice"
+                          >
+                            {item.invoice_no}
+                          </span>
                           {isPending && (
-                            <span style={{ fontSize: '0.6rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', fontWeight: 800 }}>
+                            <span style={{ fontSize: '0.6rem', background: badgeBg, color: '#fff', padding: '1px 3px', borderRadius: '3px', fontWeight: 800, marginLeft: '4px' }}>
                               PENDING
                             </span>
                           )}
