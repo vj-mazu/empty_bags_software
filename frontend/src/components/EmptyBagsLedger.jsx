@@ -62,9 +62,7 @@ const EmptyBagsLedger = () => {
     setLoading(false);
   };
 
-  const handleApplyFilter = () => {
-    fetchLedger();
-  };
+  const hasActiveFilters = Boolean(varietyId || startDate || endDate || month || invoiceNo);
 
   const handleClearFilter = () => {
     setVarietyId('');

@@ -232,10 +232,13 @@ export const downloadStocksPdf = (params = {}) => {
 
 export const downloadLedgerPdf = (params = {}) => {
   const q = new URLSearchParams();
+  if (params.type) q.set('type', params.type);
+  if (params.view_mode) q.set('view_mode', params.view_mode);
   if (params.start_date) q.set('start_date', params.start_date);
   if (params.end_date) q.set('end_date', params.end_date);
   if (params.month) q.set('month', params.month);
   if (params.variety_id) q.set('variety_id', params.variety_id);
+  if (params.invoice_no) q.set('invoice_no', params.invoice_no);
   window.open(`${API}/ledger/export-pdf/?${q.toString()}`, '_blank');
 };
 
