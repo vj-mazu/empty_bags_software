@@ -112,17 +112,45 @@ class OutwardSerializer(serializers.ModelSerializer):
     def validate(self, data):
         variety = data.get('variety')
         requested_bags = data.get('bags', 0)
+        from_place = data.get('from_place')
+        is_transfer = data.get('is_transfer', False)
+
+        # 1. Total Mill-Wide Stock Validation
         in_bags = Inward.objects.filter(variety=variety).aggregate(Sum('bags'))['bags__sum'] or 0
         out_bags = Outward.objects.filter(variety=variety).aggregate(Sum('bags'))['bags__sum'] or 0
         
-        if self.instance:
+        if self.instance and self.instance.variety == variety:
             out_bags -= self.instance.bags
 
         available_stock = in_bags - out_bags
+        if in_bags == 0:
+            raise serializers.ValidationError({
+                "bags": f"No inward stock exists for variety '{variety.name}'! Total inwarded stock is 0 bags. Cannot create outward entry."
+            })
         if requested_bags > available_stock:
             raise serializers.ValidationError({
-                "bags": f"Insufficient stock! Available stock for '{variety.name}' is only {available_stock} bags. Cannot fulfill outward request of {requested_bags} bags."
+                "bags": f"Insufficient stock! Available total stock for '{variety.name}' is only {available_stock} bags. Cannot fulfill outward request of {requested_bags} bags."
             })
+
+        # 2. Branch-Specific Location Stock Validation (when selling from a Branch)
+        if not is_transfer and from_place:
+            branch_in = Outward.objects.filter(is_transfer=True, to_place=from_place, variety=variety).aggregate(Sum('bags'))['bags__sum'] or 0
+            branch_out = Outward.objects.filter(from_place=from_place, variety=variety).aggregate(Sum('bags'))['bags__sum'] or 0
+
+            if self.instance and self.instance.from_place == from_place and self.instance.variety == variety:
+                branch_out -= self.instance.bags
+
+            branch_available = branch_in - branch_out
+
+            if branch_in == 0:
+                raise serializers.ValidationError({
+                    "bags": f"No inward/transferred stock exists at branch '{from_place.name}' for variety '{variety.name}'! (Transferred: 0 bags). Cannot make a location sale."
+                })
+            if requested_bags > branch_available:
+                raise serializers.ValidationError({
+                    "bags": f"Insufficient branch stock! Branch '{from_place.name}' only has {branch_available} bags of '{variety.name}' remaining. Cannot dispatch {requested_bags} bags."
+                })
+
         return data
 
 

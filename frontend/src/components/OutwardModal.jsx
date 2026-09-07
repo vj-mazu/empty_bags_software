@@ -215,7 +215,14 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
             </div>
             
             <div className="form-group">
-              <label>Number of Bags</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label>Number of Bags</label>
+                {selectedVariety && (
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: (selectedVariety.current_stock_bags || 0) > 0 ? '#059669' : '#dc2626' }}>
+                    Stock: {Number(selectedVariety.current_stock_bags || 0).toLocaleString()} bags
+                  </span>
+                )}
+              </div>
               <input 
                 type="number" 
                 className="input" 
@@ -225,6 +232,11 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
                 required 
                 placeholder="0" 
               />
+              {selectedVariety && numBags > Number(selectedVariety.current_stock_bags || 0) && (
+                <div style={{ fontSize: '0.72rem', color: '#dc2626', fontWeight: 700, marginTop: '2px' }}>
+                  ⚠️ Exceeds available stock ({Number(selectedVariety.current_stock_bags || 0).toLocaleString()} bags available)!
+                </div>
+              )}
             </div>
 
             <div className="form-group">
