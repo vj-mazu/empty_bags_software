@@ -51,14 +51,19 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
   const netTotalVal = totalRateVal + numLfAmount;
   const perBagCostVal = numBags > 0 ? (netTotalVal / numBags) : 0;
 
+  const isSubmittingRef = React.useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current || loading) return;
+
     if (!invoiceNo.trim() || !partyId || !varietyId || !bags || !rate) {
       setError('Please fill all required fields');
       return;
     }
 
     try {
+      isSubmittingRef.current = true;
       setLoading(true);
       setError('');
       
@@ -98,6 +103,7 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
     } catch (err) {
       setError(err.message || 'Failed to save inward entry');
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   };
@@ -254,9 +260,15 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-green" disabled={loading}>
-              <i className="fas fa-check"></i> {loading ? 'Saving...' : 'Save Inward Entry'}
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+            <button 
+              type="submit" 
+              className="btn btn-green" 
+              disabled={loading}
+              style={{ cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.75 : 1 }}
+            >
+              <i className={loading ? "fas fa-spinner fa-spin" : "fas fa-check"} style={{ marginRight: '6px' }}></i> 
+              {loading ? 'Saving...' : (editItem ? 'Update Inward Entry' : 'Save Inward Entry')}
             </button>
           </div>
         </form>

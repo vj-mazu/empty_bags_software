@@ -74,8 +74,12 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
   const netTotalVal = totalRateVal + numLfAmount;
   const perBagCostVal = numBags > 0 ? (netTotalVal / numBags) : 0;
 
+  const isSubmittingRef = React.useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current || loading) return;
+
     if (!invoiceNo.trim() || !partyId || !varietyId || !bags || !rate) {
       setError('Please fill all required fields');
       return;
@@ -90,6 +94,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
     }
 
     try {
+      isSubmittingRef.current = true;
       setLoading(true);
       setError('');
       
@@ -147,6 +152,7 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
     } catch (err) {
       setError(err.message || 'Failed to save outward entry');
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   };
@@ -403,9 +409,15 @@ const OutwardModal = ({ onClose, onSaved, parties: initialParties, varieties: in
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn btn-blue" disabled={loading}>
-              <i className="fas fa-paper-plane"></i> {loading ? 'Submitting...' : 'Submit Outward Entry'}
+            <button type="button" className="btn btn-ghost" onClick={onClose} disabled={loading}>Cancel</button>
+            <button 
+              type="submit" 
+              className="btn btn-blue" 
+              disabled={loading}
+              style={{ cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.75 : 1 }}
+            >
+              <i className={loading ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} style={{ marginRight: '6px' }}></i> 
+              {loading ? 'Submitting...' : (editItem ? 'Update Outward Entry' : 'Submit Outward Entry')}
             </button>
           </div>
         </form>

@@ -13,12 +13,23 @@ const PlaceStockLedger = () => {
     getPlaces().then(res => setPlaces(res.results || res.data || res)).catch(console.error);
   }, []);
 
+  const requestSeqRef = React.useRef(0);
+
   const fetchLedger = (placeId) => {
+    const currentSeq = ++requestSeqRef.current;
     setLoading(true);
     getPlaceLedger(placeId)
-      .then(res => setLedgerData(res.results || res.data || []))
+      .then(res => {
+        if (currentSeq === requestSeqRef.current) {
+          setLedgerData(res.results || res.data || []);
+        }
+      })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (currentSeq === requestSeqRef.current) {
+          setLoading(false);
+        }
+      });
   };
 
   useEffect(() => {

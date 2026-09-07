@@ -40,7 +40,10 @@ const EmptyBagsLedger = () => {
     }
   };
 
+  const requestSeqRef = React.useRef(0);
+
   const fetchLedger = async () => {
+    const currentSeq = ++requestSeqRef.current;
     setLoading(true);
     try {
       const params = {};
@@ -54,12 +57,17 @@ const EmptyBagsLedger = () => {
       }
       
       const res = await getLedger(params);
-      setInwardRows(res.inwards || []);
-      setOutwardRows(res.outwards || []);
+      if (currentSeq === requestSeqRef.current) {
+        setInwardRows(res.inwards || []);
+        setOutwardRows(res.outwards || []);
+      }
     } catch (err) {
       console.error(err);
+    } finally {
+      if (currentSeq === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
-    setLoading(false);
   };
 
   const hasActiveFilters = Boolean(varietyId || startDate || endDate || month || invoiceNo);

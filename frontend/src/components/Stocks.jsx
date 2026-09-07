@@ -125,7 +125,10 @@ const Stocks = ({ user, showToast }) => {
     fetchData();
   }, [filterDate]);
 
+  const requestSeqRef = React.useRef(0);
+
   const fetchData = async () => {
+    const currentSeq = ++requestSeqRef.current;
     try {
       const getBusinessTodayStr = () => {
         const now = new Date();
@@ -149,13 +152,15 @@ const Stocks = ({ user, showToast }) => {
 
       const data = await getStocksToday(filterDate || undefined);
       
-      setVarieties(data.varieties || []);
-      setParties(data.parties || []);
-      setInwards(data.inwards || []);
-      setOutwards(data.outwards || []);
-      setOpeningStock(data.opening || 0);
-      setClosingStock(data.closing || 0);
-      setPendingMap(data.pending || {});
+      if (currentSeq === requestSeqRef.current) {
+        setVarieties(data.varieties || []);
+        setParties(data.parties || []);
+        setInwards(data.inwards || []);
+        setOutwards(data.outwards || []);
+        setOpeningStock(data.opening || 0);
+        setClosingStock(data.closing || 0);
+        setPendingMap(data.pending || {});
+      }
     } catch (err) {
       console.error(err);
     }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { login } from '../api.js';
 
 export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
@@ -6,10 +6,14 @@ export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current || loading) return;
+
     setError(null);
+    isSubmittingRef.current = true;
     setLoading(true);
     
     try {
@@ -19,6 +23,7 @@ export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
     } catch (err) {
       setError(err.message || 'Invalid username or password.');
     } finally {
+      isSubmittingRef.current = false;
       setLoading(false);
     }
   };
@@ -57,6 +62,7 @@ export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
               required 
               placeholder="Enter your username"
               autoFocus
+              disabled={loading}
             />
           </div>
 
@@ -69,6 +75,7 @@ export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
               onChange={e => setPassword(e.target.value)} 
               required 
               placeholder="Enter your password"
+              disabled={loading}
             />
           </div>
 
@@ -76,7 +83,9 @@ export default function LoginModal({ onClose, onLogin, isFullPage = false }) {
             type="submit" 
             className="login-submit-btn"
             disabled={loading}
+            style={{ cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.75 : 1 }}
           >
+            <i className={loading ? "fas fa-spinner fa-spin" : "fas fa-right-to-bracket"} style={{ marginRight: '6px' }}></i>
             {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
           </button>
         </form>
