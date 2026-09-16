@@ -94,21 +94,33 @@ class AuthCheckAPIView(APIView):
 
 class LoginAPIView(APIView):
     def post(self, request):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        
-        user = authenticate(username=username, password=password)
-        if not user:
-            return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            username = (request.data.get('username') or '').strip() if request.data else ''
+            password = (request.data.get('password') or '') if request.data else ''
+            
+            if not username or not password:
+                return Response({'error': 'Username and password are required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        profile, created = UserProfile.objects.get_or_create(user=user, defaults={'role': Role.STAFF})
-        login(request, user)
-        return Response({
-            'message': 'Login successful',
-            'user_id': user.id,
-            'username': user.username,
-            'role': profile.role,
-        })
+            # Auto-seed owner account if first-time deployment with empty database
+            from django.contrib.auth.models import User
+            if not User.objects.exists():
+                from django.core.management import call_command
+                call_command('seed_data', interactive=False)
+
+            user = authenticate(username=username, password=password)
+            if not user:
+                return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
+
+            profile, created = UserProfile.objects.get_or_create(user=user, defaults={'role': Role.STAFF})
+            login(request, user)
+            return Response({
+                'message': 'Login successful',
+                'user_id': user.id,
+                'username': user.username,
+                'role': profile.role,
+            })
+        except Exception as e:
+            return Response({'error': f'Login error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LogoutAPIView(APIView):
@@ -348,38 +360,50 @@ class DashboardAPIView(APIView):
     """Returns pre-aggregated dashboard stats in 3 queries.
     Logic matches the original frontend: opening = all prior, today = current day."""
     def get(self, request):
-        b_date = get_current_business_date()
-        
-        # 1. Today's inward/outward totals
-        today_stats = Inward.objects.filter(date=b_date).aggregate(
-            in_bags=Sum('bags'), in_value=Sum('total_value')
-        )
-        today_out = Outward.objects.filter(date=b_date).aggregate(
-            out_bags=Sum('bags'), out_value=Sum('total_value')
-        )
-        
-        # 2. All-time totals before today (for opening stock)
-        prior_stats = Inward.objects.filter(date__lt=b_date).aggregate(
-            in_bags=Sum('bags')
-        )
-        prior_out = Outward.objects.filter(date__lt=b_date).aggregate(
-            out_bags=Sum('bags')
-        )
-        
-        opening = (prior_stats['in_bags'] or 0) - (prior_out['out_bags'] or 0)
-        today_in = today_stats['in_bags'] or 0
-        today_out_val = today_out['out_bags'] or 0
-        closing = opening + today_in - today_out_val
-        
-        return Response({
-            'business_date': str(b_date),
-            'opening': opening,
-            'today_inward': today_in,
-            'today_outward': today_out_val,
-            'closing': closing,
-            'today_inward_value': float(today_stats['in_value'] or 0),
-            'today_outward_value': float(today_out['out_value'] or 0),
-        })
+        try:
+            b_date = get_current_business_date()
+            
+            # 1. Today's inward/outward totals
+            today_stats = Inward.objects.filter(date=b_date).aggregate(
+                in_bags=Sum('bags'), in_value=Sum('total_value')
+            )
+            today_out = Outward.objects.filter(date=b_date).aggregate(
+                out_bags=Sum('bags'), out_value=Sum('total_value')
+            )
+            
+            # 2. All-time totals before today (for opening stock)
+            prior_stats = Inward.objects.filter(date__lt=b_date).aggregate(
+                in_bags=Sum('bags')
+            )
+            prior_out = Outward.objects.filter(date__lt=b_date).aggregate(
+                out_bags=Sum('bags')
+            )
+            
+            opening = (prior_stats['in_bags'] or 0) - (prior_out['out_bags'] or 0)
+            today_in = today_stats['in_bags'] or 0
+            today_out_val = today_out['out_bags'] or 0
+            closing = opening + today_in - today_out_val
+            
+            return Response({
+                'business_date': str(b_date),
+                'opening': opening,
+                'today_inward': today_in,
+                'today_outward': today_out_val,
+                'closing': closing,
+                'today_inward_value': float(today_stats['in_value'] or 0),
+                'today_outward_value': float(today_out['out_value'] or 0),
+            })
+        except Exception as e:
+            return Response({
+                'business_date': str(timezone.now().date()),
+                'opening': 0,
+                'today_inward': 0,
+                'today_outward': 0,
+                'closing': 0,
+                'today_inward_value': 0.0,
+                'today_outward_value': 0.0,
+                'error': str(e)
+            }, status=status.HTTP_200_OK)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -390,48 +414,62 @@ class StocksTodayAPIView(APIView):
     """Returns today's inwards + outwards + varieties + parties + opening/closing
     all in one response. Logic identical to Stocks.jsx fetchData."""
     def get(self, request):
-        b_date = get_current_business_date()
-        filter_date = request.query_params.get('date', str(b_date))
-        
-        # Annotated varieties (1 query with subqueries, not N+1)
-        variety_qs = _annotate_varieties(Variety.objects.all())
-        variety_data = VarietySerializer(variety_qs, many=True).data
-        
-        # Today's transactions only
-        in_qs = Inward.objects.filter(date=filter_date).select_related('party', 'variety', 'created_by')
-        out_qs = Outward.objects.filter(date=filter_date).select_related('party', 'variety', 'created_by')
-        
-        # Opening stock (all prior days)
-        prior_in = Inward.objects.filter(date__lt=filter_date).aggregate(tot=Sum('bags'))['tot'] or 0
-        prior_out = Outward.objects.filter(date__lt=filter_date).aggregate(tot=Sum('bags'))['tot'] or 0
-        opening = prior_in - prior_out
-        
-        today_in_bags = in_qs.aggregate(tot=Sum('bags'))['tot'] or 0
-        today_out_bags = out_qs.aggregate(tot=Sum('bags'))['tot'] or 0
-        closing = opening + today_in_bags - today_out_bags
-        
-        # Parties (small table, full load is fine)
-        parties = list(Party.objects.all().values('id', 'name'))
-        
-        # Pending approvals (lightweight)
-        pending = list(ApprovalRequest.objects.filter(status='PENDING').values(
-            'id', 'action_type', 'target_model', 'target_id', 'proposed_data'
-        ))
-        pending_map = {}
-        for p in pending:
-            pending_map[f"{p['target_model']}_{p['target_id']}"] = p
-        
-        return Response({
-            'date': filter_date,
-            'business_date': str(b_date),
-            'varieties': variety_data,
-            'parties': parties,
-            'inwards': InwardSerializer(in_qs, many=True).data,
-            'outwards': OutwardSerializer(out_qs, many=True).data,
-            'opening': opening,
-            'closing': closing,
-            'pending': pending_map,
-        })
+        try:
+            b_date = get_current_business_date()
+            filter_date = request.query_params.get('date', str(b_date))
+            
+            # Annotated varieties (1 query with subqueries, not N+1)
+            variety_qs = _annotate_varieties(Variety.objects.all())
+            variety_data = VarietySerializer(variety_qs, many=True).data
+            
+            # Today's transactions only
+            in_qs = Inward.objects.filter(date=filter_date).select_related('party', 'variety', 'created_by')
+            out_qs = Outward.objects.filter(date=filter_date).select_related('party', 'variety', 'created_by')
+            
+            # Opening stock (all prior days)
+            prior_in = Inward.objects.filter(date__lt=filter_date).aggregate(tot=Sum('bags'))['tot'] or 0
+            prior_out = Outward.objects.filter(date__lt=filter_date).aggregate(tot=Sum('bags'))['tot'] or 0
+            opening = prior_in - prior_out
+            
+            today_in_bags = in_qs.aggregate(tot=Sum('bags'))['tot'] or 0
+            today_out_bags = out_qs.aggregate(tot=Sum('bags'))['tot'] or 0
+            closing = opening + today_in_bags - today_out_bags
+            
+            # Parties (small table, full load is fine)
+            parties = list(Party.objects.all().values('id', 'name'))
+            
+            # Pending approvals (lightweight)
+            pending = list(ApprovalRequest.objects.filter(status='PENDING').values(
+                'id', 'action_type', 'target_model', 'target_id', 'proposed_data'
+            ))
+            pending_map = {}
+            for p in pending:
+                pending_map[f"{p['target_model']}_{p['target_id']}"] = p
+            
+            return Response({
+                'date': filter_date,
+                'business_date': str(b_date),
+                'varieties': variety_data,
+                'parties': parties,
+                'inwards': InwardSerializer(in_qs, many=True).data,
+                'outwards': OutwardSerializer(out_qs, many=True).data,
+                'opening': opening,
+                'closing': closing,
+                'pending': pending_map,
+            })
+        except Exception as e:
+            return Response({
+                'date': str(timezone.now().date()),
+                'business_date': str(timezone.now().date()),
+                'varieties': [],
+                'parties': [],
+                'inwards': [],
+                'outwards': [],
+                'opening': 0,
+                'closing': 0,
+                'pending': {},
+                'error': str(e)
+            }, status=status.HTTP_200_OK)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -440,60 +478,67 @@ class StocksTodayAPIView(APIView):
 
 class SystemAlertsAPIView(APIView):
     def get(self, request):
-        low_stock_alerts = []
-        aging_stock_alerts = []
+        try:
+            low_stock_alerts = []
+            aging_stock_alerts = []
 
-        # Bulk SQL aggregations — 2 single queries
-        in_map = {item['variety_id']: item['tot'] for item in Inward.objects.values('variety_id').annotate(tot=Sum('bags'))}
-        out_map = {item['variety_id']: item['tot'] for item in Outward.objects.values('variety_id').annotate(tot=Sum('bags'))}
+            # Bulk SQL aggregations — 2 single queries
+            in_map = {item['variety_id']: item['tot'] for item in Inward.objects.values('variety_id').annotate(tot=Sum('bags'))}
+            out_map = {item['variety_id']: item['tot'] for item in Outward.objects.values('variety_id').annotate(tot=Sum('bags'))}
 
-        # 1. Low Stock Alert (< 2,000 bags)
-        varieties = Variety.objects.all()
-        for v in varieties:
-            in_bags = in_map.get(v.id, 0) or 0
-            out_bags = out_map.get(v.id, 0) or 0
-            current_bags = in_bags - out_bags
+            # 1. Low Stock Alert (< 2,000 bags)
+            varieties = Variety.objects.all()
+            for v in varieties:
+                in_bags = in_map.get(v.id, 0) or 0
+                out_bags = out_map.get(v.id, 0) or 0
+                current_bags = in_bags - out_bags
+                
+                if current_bags < 2000:
+                    low_stock_alerts.append({
+                        'variety_id': v.id,
+                        'variety_name': v.name,
+                        'current_bags': current_bags,
+                        'kgs_per_bag': float(v.kgs_per_bag),
+                        'message': f"CRITICAL: Stock for '{v.name}' is low ({current_bags} bags remaining, threshold is 2,000 bags)."
+                    })
+
+            # 2. Aging Stock Alert — LIMIT to prevent loading millions of rows into memory
+            # Only load the LATEST 200 old inward records (sufficient for alerts)
+            one_year_ago = timezone.now().date() - timedelta(days=365)
+            old_inwards = (
+                Inward.objects
+                .filter(date__lte=one_year_ago)
+                .select_related('party', 'variety')
+                .only('id', 'invoice_no', 'date', 'bags', 'variety_id', 'party__name', 'variety__name')
+                .order_by('-date', '-id')[:200]
+            )
             
-            if current_bags < 2000:
-                low_stock_alerts.append({
-                    'variety_id': v.id,
-                    'variety_name': v.name,
-                    'current_bags': current_bags,
-                    'kgs_per_bag': float(v.kgs_per_bag),
-                    'message': f"CRITICAL: Stock for '{v.name}' is low ({current_bags} bags remaining, threshold is 2,000 bags)."
-                })
+            for in_rec in old_inwards:
+                v_id = in_rec.variety_id
+                curr = (in_map.get(v_id, 0) or 0) - (out_map.get(v_id, 0) or 0)
+                if curr > 0:
+                    age_days = (timezone.now().date() - in_rec.date).days
+                    aging_stock_alerts.append({
+                        'inward_id': in_rec.id,
+                        'invoice_no': in_rec.invoice_no,
+                        'date': str(in_rec.date),
+                        'age_days': age_days,
+                        'party_name': in_rec.party.name if in_rec.party else '-',
+                        'variety_name': in_rec.variety.name if in_rec.variety else '-',
+                        'bags': in_rec.bags,
+                        'message': f"AGING ALERT: Batch '{in_rec.invoice_no}' of '{in_rec.variety.name}' (Purchased: {in_rec.date}, Age: {age_days} days) remains unsold over 1 year!"
+                    })
 
-        # 2. Aging Stock Alert — LIMIT to prevent loading millions of rows into memory
-        # Only load the LATEST 200 old inward records (sufficient for alerts)
-        one_year_ago = timezone.now().date() - timedelta(days=365)
-        old_inwards = (
-            Inward.objects
-            .filter(date__lte=one_year_ago)
-            .select_related('party', 'variety')
-            .only('id', 'invoice_no', 'date', 'bags', 'variety_id', 'party__name', 'variety__name')
-            .order_by('-date', '-id')[:200]
-        )
-        
-        for in_rec in old_inwards:
-            v_id = in_rec.variety_id
-            curr = (in_map.get(v_id, 0) or 0) - (out_map.get(v_id, 0) or 0)
-            if curr > 0:
-                age_days = (timezone.now().date() - in_rec.date).days
-                aging_stock_alerts.append({
-                    'inward_id': in_rec.id,
-                    'invoice_no': in_rec.invoice_no,
-                    'date': str(in_rec.date),
-                    'age_days': age_days,
-                    'party_name': in_rec.party.name if in_rec.party else '-',
-                    'variety_name': in_rec.variety.name if in_rec.variety else '-',
-                    'bags': in_rec.bags,
-                    'message': f"AGING ALERT: Batch '{in_rec.invoice_no}' of '{in_rec.variety.name}' (Purchased: {in_rec.date}, Age: {age_days} days) remains unsold over 1 year!"
-                })
-
-        return Response({
-            'low_stock_alerts': low_stock_alerts,
-            'aging_stock_alerts': aging_stock_alerts
-        })
+            return Response({
+                'low_stock_alerts': low_stock_alerts,
+                'aging_stock_alerts': aging_stock_alerts
+            })
+        except Exception as e:
+            return Response({
+                'low_stock_alerts': [],
+                'aging_stock_alerts': [],
+                'error': str(e)
+            }, status=status.HTTP_200_OK)
 
 
 # ═════════════════════════════════════════════════════════════════════════════

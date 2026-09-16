@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: empty-bags-software
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn mother_india.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DEBUG
+        value: "False"
