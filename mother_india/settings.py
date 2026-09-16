@@ -67,6 +67,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'mother_india.wsgi.application'
 
 # Database Configuration
+# Database Configuration
 if 'test' in sys.argv:
     DATABASES = {
         'default': {
@@ -75,13 +76,39 @@ if 'test' in sys.argv:
         }
     }
 elif os.environ.get('DATABASE_URL') and dj_database_url:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
-            conn_max_age=600,
-            ssl_require=True
+    db_config = dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,
+        ssl_require=True
+    )
+    # Validate PostgreSQL connection so paused/expired Supabase tenants don't crash the server
+    can_connect = True
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            dbname=db_config.get('NAME'),
+            user=db_config.get('USER'),
+            password=db_config.get('PASSWORD'),
+            host=db_config.get('HOST'),
+            port=db_config.get('PORT') or 5432,
+            connect_timeout=3,
+            sslmode='require'
         )
-    }
+        conn.close()
+    except Exception as db_err:
+        can_connect = False
+        print(f"⚠️ DATABASE_URL PostgreSQL connection failed ({db_err}). Falling back to SQLite.", file=sys.stderr)
+
+    if can_connect:
+        DATABASES = {'default': db_config}
+    else:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'empty_bags.sqlite3',
+                'OPTIONS': {'timeout': 20}
+            }
+        }
 else:
     # Local development: try PostgreSQL, fallback to SQLite
     import socket
