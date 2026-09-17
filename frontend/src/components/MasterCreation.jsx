@@ -44,6 +44,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const [placeForm, setPlaceForm] = useState({ name: '' });
   const [partyForm, setPartyForm] = useState({ name: '', shortcut_name: '', phone_number: '', place: '' });
   const [varietyForm, setVarietyForm] = useState({ name: '', kgs_per_bag: '', photo: null });
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const [phoneError, setPhoneError] = useState('');
 
@@ -528,9 +529,27 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                     <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
                     <td style={{ textAlign: 'center' }}>
                       {(v.photo_url || v.photo_data || v.photo) ? (
-                        <img src={v.photo_url || v.photo_data || v.photo} alt={v.name} className="thumb" style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '6px' }} />
+                        <div 
+                          onClick={() => setPreviewPhoto({ src: v.photo_url || v.photo_data || v.photo, name: v.name, kgs: v.kgs_per_bag })}
+                          style={{ cursor: 'pointer', display: 'inline-block', position: 'relative' }}
+                          title="Click to view full photo"
+                        >
+                          <img 
+                            src={v.photo_url || v.photo_data || v.photo} 
+                            alt={v.name} 
+                            className="thumb" 
+                            style={{ 
+                              width: '38px', 
+                              height: '38px', 
+                              objectFit: 'cover', 
+                              borderRadius: '6px', 
+                              border: '1.5px solid #cbd5e1',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                            }} 
+                          />
+                        </div>
                       ) : (
-                        <div className="thumb" style={{ width: '38px', height: '38px', background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}>
+                        <div className="thumb" style={{ width: '38px', height: '38px', background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
                           <i className="fas fa-image" style={{ color: '#cbd5e1' }}></i>
                         </div>
                       )}
@@ -836,6 +855,69 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
         onConfirm={confirmState.onConfirm}
         onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* FULL-SIZE PHOTO PREVIEW LIGHTBOX */}
+      {previewPhoto && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setPreviewPhoto(null)} 
+          style={{ zIndex: 99999, background: 'rgba(15, 23, 42, 0.82)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div 
+            className="modal" 
+            onClick={e => e.stopPropagation()} 
+            style={{ maxWidth: '520px', width: '92%', padding: '1.25rem', borderRadius: '12px', background: '#ffffff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <i className="fas fa-image" style={{ color: '#2563eb' }}></i> {previewPhoto.name}
+                </h3>
+                {previewPhoto.kgs && (
+                  <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                    Standard Weight: {previewPhoto.kgs} kg/bag
+                  </span>
+                )}
+              </div>
+              <button 
+                className="modal-close" 
+                onClick={() => setPreviewPhoto(null)}
+                style={{ fontSize: '1.5rem', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ textAlign: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <img 
+                src={previewPhoto.src} 
+                alt={previewPhoto.name} 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '400px', 
+                  objectFit: 'contain', 
+                  borderRadius: '8px',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
+                }} 
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', gap: '0.5rem' }}>
+              <a 
+                href={previewPhoto.src} 
+                download={`${previewPhoto.name.replace(/\s+/g, '_')}_bag.jpg`} 
+                className="btn btn-blue btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
+              >
+                <i className="fas fa-download"></i> Download Photo
+              </a>
+              <button className="btn btn-ghost btn-sm" onClick={() => setPreviewPhoto(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
