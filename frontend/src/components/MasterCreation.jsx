@@ -258,12 +258,49 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   };
 
   // --- Handlers: Variety ---
+  const handlePhotoChange = (file) => {
+    if (!file) {
+      setVarietyForm(prev => ({ ...prev, photo: null, photo_data: '' }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 350;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setVarietyForm(prev => ({ ...prev, photo: file, photo_data: dataUrl }));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleVarietySubmit = async (e) => {
     e.preventDefault();
     try {
       const formData = new FormData();
       formData.append('name', varietyForm.name);
       formData.append('kgs_per_bag', varietyForm.kgs_per_bag);
+      if (varietyForm.photo_data) {
+        formData.append('photo_data', varietyForm.photo_data);
+      }
       if (varietyForm.photo) {
         formData.append('photo', varietyForm.photo);
       }
@@ -286,7 +323,8 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
     setVarietyForm({
       name: v.name,
       kgs_per_bag: v.kgs_per_bag,
-      photo: null
+      photo: null,
+      photo_data: v.photo_data || ''
     });
     setShowVarietyModal(true);
   };
@@ -487,10 +525,10 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                   <tr key={v.id}>
                     <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
                     <td style={{ textAlign: 'center' }}>
-                      {v.photo ? (
-                        <img src={v.photo} alt={v.name} className="thumb" />
+                      {(v.photo_url || v.photo_data || v.photo) ? (
+                        <img src={v.photo_url || v.photo_data || v.photo} alt={v.name} className="thumb" style={{ width: '38px', height: '38px', objectFit: 'cover', borderRadius: '6px' }} />
                       ) : (
-                        <div className="thumb" style={{ background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className="thumb" style={{ width: '38px', height: '38px', background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}>
                           <i className="fas fa-image" style={{ color: '#cbd5e1' }}></i>
                         </div>
                       )}
@@ -766,7 +804,13 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
               </div>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
                 <label>Variety Photo {editVarietyId ? <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'none' }}>(Leave empty to keep current)</span> : <span style={{ color: '#64748b', fontSize: '0.72rem', textTransform: 'none' }}>(Optional)</span>}</label>
-                <input type="file" accept="image/*" className="input" onChange={e => setVarietyForm({ ...varietyForm, photo: e.target.files[0] })} />
+                <input type="file" accept="image/*" className="input" onChange={e => handlePhotoChange(e.target.files[0])} />
+                {varietyForm.photo_data && (
+                  <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <img src={varietyForm.photo_data} alt="Preview" style={{ width: '45px', height: '45px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                    <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 600 }}>✓ Image optimized for cloud storage</span>
+                  </div>
+                )}
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={closeVarietyModal}>Cancel</button>

@@ -54,10 +54,21 @@ class VarietySerializer(serializers.ModelSerializer):
     current_stock_bags = serializers.SerializerMethodField()
     current_stock_kgs = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Variety
-        fields = ['id', 'name', 'photo', 'kgs_per_bag', 'created_at', 'current_stock_bags', 'current_stock_kgs', 'can_delete']
+        fields = ['id', 'name', 'photo', 'photo_data', 'photo_url', 'kgs_per_bag', 'created_at', 'current_stock_bags', 'current_stock_kgs', 'can_delete']
+
+    def get_photo_url(self, obj):
+        if obj.photo_data:
+            return obj.photo_data
+        if obj.photo:
+            try:
+                return obj.photo.url
+            except Exception:
+                return None
+        return None
 
     def get_current_stock_bags(self, obj):
         # Use prefetched annotation if available (set by view), otherwise single query

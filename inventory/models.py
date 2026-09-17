@@ -46,6 +46,7 @@ class Party(models.Model):
 class Variety(models.Model):
     name = models.CharField(max_length=150, unique=True)
     photo = models.ImageField(upload_to='varieties/', blank=True, null=True)
+    photo_data = models.TextField(blank=True, null=True, help_text="Base64 image data for permanent cloud database storage")
     kgs_per_bag = models.DecimalField(max_digits=8, decimal_places=2, help_text="Mandatory standard Kgs per bag")
     created_at = models.DateTimeField(auto_now_add=True)
 
