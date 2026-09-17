@@ -690,12 +690,20 @@ class EmptyBagsStockLedgerAPIView(APIView):
             avg_rate_in = in_info.get('avg_rate') or all_avg_rates.get(v_id, 0)
             rate_per_bag = float(round(Decimal(str(avg_rate_in or 0)), 2))
             closing_bags = opening_bags + inward_bags - outward_bags
-
             total_val = float(round(Decimal(str(closing_bags * rate_per_bag)), 2))
+
+            photo_url = None
+            if v.photo:
+                try:
+                    photo_url = request.build_absolute_uri(v.photo.url)
+                except Exception:
+                    photo_url = str(v.photo.url)
 
             common_data = {
                 'variety_id': v_id,
                 'variety_name': v.name,
+                'photo_url': photo_url,
+                'photo_data': v.photo_data or '',
                 'kgs_per_bag': float(v.kgs_per_bag),
                 'opening_bags': opening_bags,
                 'rate_per_bag': rate_per_bag,
