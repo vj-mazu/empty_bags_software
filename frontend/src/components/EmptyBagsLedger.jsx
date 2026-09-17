@@ -144,10 +144,10 @@ const EmptyBagsLedger = () => {
               className={`master-tab-btn ${viewMode === 'split' ? 'active' : ''}`}
               onClick={() => setViewMode('split')}
               style={{ padding: '0.5rem 0.95rem' }}
-              title="Left: Inward with Images | Right: Outward with Images"
+              title="Left: Inward Cards | Right: Outward Cards"
             >
               <i className="fas fa-columns" style={{ color: viewMode === 'split' ? '#2563eb' : '#64748b' }}></i>
-              <span>Split View</span>
+              <span>Split Cards</span>
             </button>
 
             <button 
@@ -156,7 +156,7 @@ const EmptyBagsLedger = () => {
               style={{ padding: '0.5rem 0.95rem' }}
             >
               <i className="fas fa-boxes-packing" style={{ color: viewMode === 'inward' ? '#059669' : '#64748b' }}></i>
-              <span>Inward Only</span>
+              <span>Inward Cards</span>
               <span className="tab-badge" style={{ background: viewMode === 'inward' ? '#ecfdf5' : '#f1f5f9', color: viewMode === 'inward' ? '#059669' : '#64748b' }}>
                 {inwardRows.length}
               </span>
@@ -168,20 +168,20 @@ const EmptyBagsLedger = () => {
               style={{ padding: '0.5rem 0.95rem' }}
             >
               <i className="fas fa-truck-ramp-box" style={{ color: viewMode === 'outward' ? '#dc2626' : '#64748b' }}></i>
-              <span>Outward Only</span>
+              <span>Outward Cards</span>
               <span className="tab-badge" style={{ background: viewMode === 'outward' ? '#fef2f2' : '#f1f5f9', color: viewMode === 'outward' ? '#dc2626' : '#64748b' }}>
                 {outwardRows.length}
               </span>
             </button>
 
             <button 
-              className={`master-tab-btn ${viewMode === 'cards' ? 'active' : ''}`}
-              onClick={() => setViewMode('cards')}
+              className={`master-tab-btn ${viewMode === 'table' ? 'active' : ''}`}
+              onClick={() => setViewMode('table')}
               style={{ padding: '0.5rem 0.95rem' }}
-              title="Visual Product Stock Cards"
+              title="Dense Accounting Table Ledger"
             >
-              <i className="fas fa-grip" style={{ color: viewMode === 'cards' ? '#d97706' : '#64748b' }}></i>
-              <span>Visual Cards</span>
+              <i className="fas fa-table-list" style={{ color: viewMode === 'table' ? '#2563eb' : '#64748b' }}></i>
+              <span>Table View</span>
             </button>
           </div>
 
@@ -261,99 +261,211 @@ const EmptyBagsLedger = () => {
         </div>
       </div>
 
-      {/* ─── VISUAL CARDS GRID MODE ─── */}
-      {isCards ? (
+      {/* ─── VISUAL CARDS MODE (SPLIT & SINGLE) ─── */}
+      {viewMode !== 'table' ? (
         <div>
           {loading ? (
-            <div className="card" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}></i>
-              <div>Loading stock cards...</div>
+            <div className="card" style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+              <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.8rem', marginBottom: '0.6rem', color: '#2563eb' }}></i>
+              <div style={{ fontWeight: 600 }}>Loading variety stock cards...</div>
             </div>
           ) : (
-            <div className="ledger-cards-grid">
-              {inwardRows.map((row) => {
-                const photoInfo = getPhotoInfo(row);
-                const outRow = outwardRows.find(o => o.variety_id === row.variety_id) || {};
-                const outBags = outRow.outward_bags || 0;
-                const closingBags = (row.opening_bags || 0) + (row.inward_bags || 0) - outBags;
-
-                return (
-                  <article key={row.variety_id} className="ledger-stock-card">
-                    <div 
-                      className="ledger-card-photo-wrap"
-                      onClick={() => photoInfo.src && setPreviewPhoto(photoInfo)}
-                      title={photoInfo.src ? "Click to view full photo" : "No photo uploaded"}
-                    >
-                      {photoInfo.src ? (
-                        <img src={photoInfo.src} alt={photoInfo.name} />
-                      ) : (
-                        <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-                          <i className="fas fa-image" style={{ fontSize: '2.5rem', marginBottom: '0.4rem' }}></i>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 600 }}>No Photo</div>
-                        </div>
-                      )}
-                      <span className="ledger-card-badge">
-                        ⚖️ {row.kgs_per_bag || 0} kg/bag
-                      </span>
+            <div className={isSplit ? 'ledger-split-grid' : 'ledger-cards-grid'}>
+              
+              {/* LEFT SIDE: INWARD EMPTY BAGS CARDS */}
+              {showInward && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.25rem', borderBottom: '2px solid #10b981' }}>
+                    <div style={{ color: '#059669', fontWeight: 800, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <i className="fas fa-boxes-packing"></i> 🟢 INWARD EMPTY BAGS
                     </div>
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '0.2rem 0.6rem', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                      {inwardRows.length} Varieties
+                    </span>
+                  </div>
 
-                    <div className="ledger-card-body">
-                      <div>
-                        <button
+                  <div className="split-cards-column">
+                    {inwardRows.map((row, idx) => {
+                      const photoInfo = getPhotoInfo(row);
+                      const bagIdx = String(idx + 1).padStart(2, '0');
+                      return (
+                        <article 
+                          key={row.variety_id || idx} 
+                          className="ledger-stock-card"
                           onClick={() => setSelectedVarietyId(row.variety_id)}
-                          style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                          title="Click to view full transaction ledger"
+                          style={{ cursor: 'pointer' }}
                         >
-                          <h3 className="ledger-card-title" style={{ color: '#2563eb' }}>
-                            {row.variety_name}
-                          </h3>
-                          <i className="fas fa-up-right-from-square" style={{ fontSize: '0.7rem', color: '#2563eb' }}></i>
-                        </button>
-                        {row.latest_party && row.latest_party !== '-' && (
-                          <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>
-                            Supplier: <strong>{row.latest_party}</strong>
+                          <div 
+                            className="ledger-card-photo-wrap"
+                            onClick={(e) => {
+                              if (photoInfo.src) {
+                                e.stopPropagation();
+                                setPreviewPhoto(photoInfo);
+                              }
+                            }}
+                            title="Click to view full high-res photo"
+                          >
+                            {photoInfo.src ? (
+                              <img src={photoInfo.src} alt={photoInfo.name} />
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#64748b' }}>
+                                <i className="fas fa-image" style={{ fontSize: '3.2rem', marginBottom: '0.4rem', color: '#475569' }}></i>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#94a3b8' }}>No Photo</div>
+                              </div>
+                            )}
+                            <span className="ledger-card-badge">BAG {bagIdx}</span>
+                            <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg/bag</span>
                           </div>
-                        )}
-                      </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        <div className="ledger-card-meta-row">
-                          <span style={{ color: '#64748b' }}>Opening Stock:</span>
-                          <strong style={{ color: '#334155' }}>{formatBags(row.opening_bags)}</strong>
-                        </div>
-                        <div className="ledger-card-meta-row">
-                          <span style={{ color: '#059669', fontWeight: 600 }}>Inward (+):</span>
-                          <strong style={{ color: '#059669' }}>+{formatBags(row.inward_bags)}</strong>
-                        </div>
-                        <div className="ledger-card-meta-row">
-                          <span style={{ color: '#dc2626', fontWeight: 600 }}>Outward (-):</span>
-                          <strong style={{ color: '#dc2626' }}>-{formatBags(outBags)}</strong>
-                        </div>
-                        <div className="ledger-card-meta-row" style={{ background: '#f8fafc', padding: '0.4rem 0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                          <span style={{ color: '#1d4ed8', fontWeight: 700 }}>Remaining:</span>
-                          <strong style={{ color: '#1d4ed8', fontSize: '0.95rem' }}>{formatBags(closingBags)} bags</strong>
-                        </div>
-                        <div className="ledger-card-meta-row">
-                          <span style={{ color: '#64748b' }}>Avg Rate:</span>
-                          <strong style={{ color: '#0f172a' }}>₹{row.rate_per_bag}</strong>
-                        </div>
-                        <div className="ledger-card-meta-row">
-                          <span style={{ color: '#64748b' }}>Total Value:</span>
-                          <strong style={{ color: '#0f172a' }}>{formatINR(row.total_value)}</strong>
-                        </div>
-                      </div>
+                          <div className="ledger-card-body">
+                            <div>
+                              <div className="ledger-card-kicker" style={{ color: '#059669' }}>INWARD RECEIPT</div>
+                              <h3 className="ledger-card-title">{row.variety_name}</h3>
+                              {row.latest_party && row.latest_party !== '-' && (
+                                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '3px' }}>
+                                  Supplier: <strong style={{ color: '#0f172a' }}>{row.latest_party}</strong>
+                                </div>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#64748b' }}>Opening Stock:</span>
+                                <strong style={{ color: '#334155' }}>{formatBags(row.opening_bags)}</strong>
+                              </div>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#059669', fontWeight: 700 }}>Inward Bags (+):</span>
+                                <strong style={{ color: '#059669', fontSize: '0.92rem' }}>+{formatBags(row.inward_bags)}</strong>
+                              </div>
+                              <div className="ledger-card-meta-row" style={{ background: '#eff6ff', padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                                <span style={{ color: '#1d4ed8', fontWeight: 700 }}>Remaining Balance:</span>
+                                <strong style={{ color: '#1d4ed8', fontSize: '1rem' }}>{formatBags(row.closing_bags)} bags</strong>
+                              </div>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#64748b' }}>Purchase Rate:</span>
+                                <strong style={{ color: '#0f172a' }}>₹{row.rate_per_bag} / bag</strong>
+                              </div>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#64748b' }}>Total Inward Valuation:</span>
+                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{formatINR(row.total_value)}</strong>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#2563eb', fontWeight: 600, paddingTop: '0.3rem', borderTop: '1px solid #f1f5f9' }}>
+                              <i className="fas fa-list-check" style={{ marginRight: '4px' }}></i> Click to view itemized history
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                    {inwardRows.length === 0 && (
+                      <div className="card" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No inward records found.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* RIGHT SIDE: OUTWARD EMPTY BAGS CARDS */}
+              {showOutward && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.25rem', borderBottom: '2px solid #ef4444' }}>
+                    <div style={{ color: '#dc2626', fontWeight: 800, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <i className="fas fa-truck-ramp-box"></i> 🔴 OUTWARD EMPTY BAGS
                     </div>
-                  </article>
-                );
-              })}
+                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '0.2rem 0.6rem', borderRadius: '6px', border: '1px solid #fecaca' }}>
+                      {outwardRows.length} Varieties
+                    </span>
+                  </div>
+
+                  <div className="split-cards-column">
+                    {outwardRows.map((row, idx) => {
+                      const photoInfo = getPhotoInfo(row);
+                      const bagIdx = String(idx + 1).padStart(2, '0');
+                      return (
+                        <article 
+                          key={row.variety_id || idx} 
+                          className="ledger-stock-card"
+                          onClick={() => setSelectedVarietyId(row.variety_id)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <div 
+                            className="ledger-card-photo-wrap"
+                            onClick={(e) => {
+                              if (photoInfo.src) {
+                                e.stopPropagation();
+                                setPreviewPhoto(photoInfo);
+                              }
+                            }}
+                            title="Click to view full high-res photo"
+                          >
+                            {photoInfo.src ? (
+                              <img src={photoInfo.src} alt={photoInfo.name} />
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#64748b' }}>
+                                <i className="fas fa-image" style={{ fontSize: '3.2rem', marginBottom: '0.4rem', color: '#475569' }}></i>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#94a3b8' }}>No Photo</div>
+                              </div>
+                            )}
+                            <span className="ledger-card-badge">BAG {bagIdx}</span>
+                            <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg/bag</span>
+                          </div>
+
+                          <div className="ledger-card-body">
+                            <div>
+                              <div className="ledger-card-kicker" style={{ color: '#dc2626' }}>OUTWARD ISSUE</div>
+                              <h3 className="ledger-card-title">{row.variety_name}</h3>
+                              {row.latest_party && row.latest_party !== '-' && (
+                                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '3px' }}>
+                                  Party / Unit: <strong style={{ color: '#0f172a' }}>{row.latest_party}</strong>
+                                </div>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#64748b' }}>Opening Stock:</span>
+                                <strong style={{ color: '#334155' }}>{formatBags(row.opening_bags)}</strong>
+                              </div>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#dc2626', fontWeight: 700 }}>Outward Bags (-):</span>
+                                <strong style={{ color: '#dc2626', fontSize: '0.92rem' }}>-{formatBags(row.outward_bags)}</strong>
+                              </div>
+                              <div className="ledger-card-meta-row" style={{ background: '#eff6ff', padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                                <span style={{ color: '#1d4ed8', fontWeight: 700 }}>Remaining Balance:</span>
+                                <strong style={{ color: '#1d4ed8', fontSize: '1rem' }}>{formatBags(row.closing_bags)} bags</strong>
+                              </div>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#64748b' }}>Issue Rate:</span>
+                                <strong style={{ color: '#0f172a' }}>₹{row.rate_per_bag} / bag</strong>
+                              </div>
+                              <div className="ledger-card-meta-row">
+                                <span style={{ color: '#64748b' }}>Total Outward Valuation:</span>
+                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{formatINR(row.total_value)}</strong>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#2563eb', fontWeight: 600, paddingTop: '0.3rem', borderTop: '1px solid #f1f5f9' }}>
+                              <i className="fas fa-list-check" style={{ marginRight: '4px' }}></i> Click to view itemized history
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                    {outwardRows.length === 0 && (
+                      <div className="card" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No outward records found.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
         </div>
       ) : (
-        /* ─── SPLIT & TABLE VIEW (LEFT: INWARD with Images | RIGHT: OUTWARD with Images) ─── */
+        /* ─── TABLE VIEW (Dense Accounting Layout) ─── */
         <div style={{ display: 'grid', gridTemplateColumns: isSplit ? '1fr 1fr' : '1fr', gap: '1rem', marginBottom: '1.25rem', width: '100%' }}>
           
-          {/* LEFT SIDE: INWARD EMPTY BAGS LEDGER */}
+          {/* INWARD TABLE */}
           {showInward && (
             <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981', padding: isSplit ? '0.75rem' : '1.15rem', overflow: 'hidden' }}>
               <div className="card-hdr" style={{ paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
@@ -390,8 +502,6 @@ const EmptyBagsLedger = () => {
                         return (
                           <tr key={row.variety_id || idx}>
                             <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: '4px 2px' }}>{idx + 1}</td>
-                            
-                            {/* BAG IMAGE THUMBNAIL (CLICK TO ZOOM) */}
                             <td style={{ textAlign: 'center', padding: '4px 2px' }}>
                               {photoInfo.src ? (
                                 <button 
@@ -411,7 +521,6 @@ const EmptyBagsLedger = () => {
                                 </div>
                               )}
                             </td>
-
                             <td style={{ padding: '4px 4px', maxWidth: isSplit ? '105px' : '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               <button 
                                 onClick={() => setSelectedVarietyId(row.variety_id)} 
@@ -445,7 +554,7 @@ const EmptyBagsLedger = () => {
             </div>
           )}
 
-          {/* RIGHT SIDE: OUTWARD EMPTY BAGS LEDGER */}
+          {/* OUTWARD TABLE */}
           {showOutward && (
             <div className="card" style={{ margin: 0, borderTop: '4px solid #ef4444', padding: isSplit ? '0.75rem' : '1.15rem', overflow: 'hidden' }}>
               <div className="card-hdr" style={{ paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
@@ -482,8 +591,6 @@ const EmptyBagsLedger = () => {
                         return (
                           <tr key={row.variety_id || idx}>
                             <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: '4px 2px' }}>{idx + 1}</td>
-
-                            {/* BAG IMAGE THUMBNAIL (CLICK TO ZOOM) */}
                             <td style={{ textAlign: 'center', padding: '4px 2px' }}>
                               {photoInfo.src ? (
                                 <button 
@@ -503,7 +610,6 @@ const EmptyBagsLedger = () => {
                                 </div>
                               )}
                             </td>
-
                             <td style={{ padding: '4px 4px', maxWidth: isSplit ? '105px' : '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               <button 
                                 onClick={() => setSelectedVarietyId(row.variety_id)} 
