@@ -4,6 +4,110 @@ import VarietyDetailModal from './VarietyDetailModal';
 import SearchableSelect from './SearchableSelect';
 import { formatINR, formatBags } from '../utils/formatters';
 
+const LedgerStockCard = ({ row, type, index, onSelectVariety, onPreviewPhoto, getPhotoInfo }) => {
+  const photoInfo = getPhotoInfo(row);
+  const bagIdx = String(index + 1).padStart(2, '0');
+  const isInward = type === 'inward';
+
+  return (
+    <article 
+      className="ledger-stock-card"
+      onClick={() => onSelectVariety(row.variety_id)}
+      style={{ cursor: 'pointer' }}
+    >
+      {/* PHOTO HERO CONTAINER */}
+      <div 
+        className="ledger-card-photo-wrap"
+        onClick={(e) => {
+          if (photoInfo.src) {
+            e.stopPropagation();
+            onPreviewPhoto(photoInfo);
+          }
+        }}
+        title="Click to zoom high-resolution photo"
+      >
+        {photoInfo.src ? (
+          <img src={photoInfo.src} alt={photoInfo.name} />
+        ) : (
+          <div className="ledger-no-photo">
+            <i className="fas fa-image"></i>
+            <span>No Photo Uploaded</span>
+          </div>
+        )}
+        <span className="ledger-card-badge">BAG {bagIdx}</span>
+        <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg/bag</span>
+      </div>
+
+      {/* CARD CONTENT BODY */}
+      <div className="ledger-card-body">
+        
+        {/* Variety Header Block */}
+        <div className="ledger-card-header-block">
+          <div className={`ledger-card-kicker ${isInward ? 'kicker-inward' : 'kicker-outward'}`}>
+            <i className={isInward ? "fas fa-arrow-circle-down" : "fas fa-arrow-circle-up"}></i>
+            <span>{isInward ? 'INWARD RECEIPT' : 'OUTWARD ISSUE'}</span>
+          </div>
+          <h3 className="ledger-card-title" title={row.variety_name}>
+            {row.variety_name}
+          </h3>
+          <div className="ledger-card-party-tag" title={row.latest_party || ''}>
+            <i className={isInward ? "fas fa-truck-ramp-box" : "fas fa-building"}></i>
+            <span className="party-label">{isInward ? 'Supplier:' : 'Party / Unit:'}</span>
+            <span className="party-name">{row.latest_party && row.latest_party !== '-' ? row.latest_party : 'General Movement'}</span>
+          </div>
+        </div>
+
+        {/* Structured 2x2 Metric Grid */}
+        <div className="ledger-metrics-grid">
+          {/* Tile 1: Opening Stock */}
+          <div className="ledger-metric-tile">
+            <span className="metric-label">Opening Stock</span>
+            <span className="metric-value text-slate">{formatBags(row.opening_bags)} <small>bags</small></span>
+          </div>
+
+          {/* Tile 2: Movement (+ or -) */}
+          <div className={`ledger-metric-tile ${isInward ? 'metric-tile-green' : 'metric-tile-red'}`}>
+            <span className="metric-label">{isInward ? 'Inward Bags (+)' : 'Outward Bags (-)'}</span>
+            <span className={`metric-value ${isInward ? 'text-green' : 'text-red'}`}>
+              {isInward ? `+${formatBags(row.inward_bags)}` : `-${formatBags(row.outward_bags)}`} <small>bags</small>
+            </span>
+          </div>
+
+          {/* Tile 3: Rate */}
+          <div className="ledger-metric-tile">
+            <span className="metric-label">{isInward ? 'Purchase Rate' : 'Issue Rate'}</span>
+            <span className="metric-value text-slate">₹{Number(row.rate_per_bag || 0).toFixed(2)} <small>/bag</small></span>
+          </div>
+
+          {/* Tile 4: Movement Valuation */}
+          <div className="ledger-metric-tile">
+            <span className="metric-label">{isInward ? 'Inward Value' : 'Outward Value'}</span>
+            <span className="metric-value text-slate font-mono">{formatINR(row.total_value)}</span>
+          </div>
+        </div>
+
+        {/* Prominent Current Balance Banner */}
+        <div className="ledger-balance-banner">
+          <div className="balance-left">
+            <i className="fas fa-boxes-stacked"></i>
+            <span>Current Balance</span>
+          </div>
+          <div className="balance-right">
+            <strong>{formatBags(row.closing_bags)}</strong> <small>bags</small>
+          </div>
+        </div>
+
+        {/* Card Footer Link */}
+        <div className="ledger-card-footer">
+          <span>Click to view itemized history</span>
+          <i className="fas fa-arrow-right"></i>
+        </div>
+
+      </div>
+    </article>
+  );
+};
+
 const EmptyBagsLedger = () => {
   const [varieties, setVarieties] = useState([]);
   const [inwardRows, setInwardRows] = useState([]);
@@ -269,195 +373,127 @@ const EmptyBagsLedger = () => {
               <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.8rem', marginBottom: '0.6rem', color: '#2563eb' }}></i>
               <div style={{ fontWeight: 600 }}>Loading variety stock cards...</div>
             </div>
+          ) : isSplit ? (
+            /* ─── SPLIT VIEW (PAIRED SIDE-BY-SIDE EQUAL HEIGHT ROWS) ─── */
+            <div style={{ width: '100%' }}>
+              {/* Top Column Headers */}
+              <div className="ledger-split-top-header">
+                <div className="ledger-col-header col-hdr-inward">
+                  <div className="col-hdr-title">
+                    <i className="fas fa-boxes-packing"></i>
+                    <span>INWARD EMPTY BAGS</span>
+                  </div>
+                  <span className="col-hdr-count">{inwardRows.length} Varieties</span>
+                </div>
+
+                <div className="ledger-col-header col-hdr-outward">
+                  <div className="col-hdr-title">
+                    <i className="fas fa-truck-ramp-box"></i>
+                    <span>OUTWARD EMPTY BAGS</span>
+                  </div>
+                  <span className="col-hdr-count">{outwardRows.length} Varieties</span>
+                </div>
+              </div>
+
+              {/* Paired Grid Rows: Left and Right align side-by-side with 100% equal height */}
+              <div className="ledger-pairs-container">
+                {Array.from({ length: Math.max(inwardRows.length, outwardRows.length) }).map((_, idx) => {
+                  const inRow = inwardRows[idx];
+                  const outRow = outwardRows[idx];
+                  return (
+                    <div key={inRow?.variety_id || outRow?.variety_id || idx} className="ledger-pair-row">
+                      {inRow ? (
+                        <LedgerStockCard 
+                          row={inRow} 
+                          type="inward" 
+                          index={idx}
+                          onSelectVariety={setSelectedVarietyId}
+                          onPreviewPhoto={setPreviewPhoto}
+                          getPhotoInfo={getPhotoInfo}
+                        />
+                      ) : (
+                        <div className="ledger-empty-placeholder">No Inward Record</div>
+                      )}
+
+                      {outRow ? (
+                        <LedgerStockCard 
+                          row={outRow} 
+                          type="outward" 
+                          index={idx}
+                          onSelectVariety={setSelectedVarietyId}
+                          onPreviewPhoto={setPreviewPhoto}
+                          getPhotoInfo={getPhotoInfo}
+                        />
+                      ) : (
+                        <div className="ledger-empty-placeholder">No Outward Record</div>
+                      )}
+                    </div>
+                  );
+                })}
+                {inwardRows.length === 0 && outwardRows.length === 0 && (
+                  <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                    No bag records found matching the current filters.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : viewMode === 'inward' ? (
+            /* ─── INWARD SINGLE CARDS VIEW ─── */
+            <div style={{ width: '100%' }}>
+              <div className="ledger-col-header col-hdr-inward" style={{ marginBottom: '1.25rem' }}>
+                <div className="col-hdr-title">
+                  <i className="fas fa-boxes-packing"></i>
+                  <span>INWARD EMPTY BAGS</span>
+                </div>
+                <span className="col-hdr-count">{inwardRows.length} Varieties</span>
+              </div>
+              <div className="ledger-single-cards-grid">
+                {inwardRows.map((row, idx) => (
+                  <LedgerStockCard 
+                    key={row.variety_id || idx}
+                    row={row}
+                    type="inward"
+                    index={idx}
+                    onSelectVariety={setSelectedVarietyId}
+                    onPreviewPhoto={setPreviewPhoto}
+                    getPhotoInfo={getPhotoInfo}
+                  />
+                ))}
+              </div>
+              {inwardRows.length === 0 && (
+                <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                  No inward records found matching the current filters.
+                </div>
+              )}
+            </div>
           ) : (
-            <div className={isSplit ? 'ledger-split-grid' : 'ledger-cards-grid'}>
-              
-              {/* LEFT SIDE: INWARD EMPTY BAGS CARDS */}
-              {showInward && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.25rem', borderBottom: '2px solid #10b981' }}>
-                    <div style={{ color: '#059669', fontWeight: 800, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <i className="fas fa-boxes-packing"></i> 🟢 INWARD EMPTY BAGS
-                    </div>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '0.2rem 0.6rem', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
-                      {inwardRows.length} Varieties
-                    </span>
-                  </div>
-
-                  <div className="split-cards-column">
-                    {inwardRows.map((row, idx) => {
-                      const photoInfo = getPhotoInfo(row);
-                      const bagIdx = String(idx + 1).padStart(2, '0');
-                      return (
-                        <article 
-                          key={row.variety_id || idx} 
-                          className="ledger-stock-card"
-                          onClick={() => setSelectedVarietyId(row.variety_id)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <div 
-                            className="ledger-card-photo-wrap"
-                            onClick={(e) => {
-                              if (photoInfo.src) {
-                                e.stopPropagation();
-                                setPreviewPhoto(photoInfo);
-                              }
-                            }}
-                            title="Click to view full high-res photo"
-                          >
-                            {photoInfo.src ? (
-                              <img src={photoInfo.src} alt={photoInfo.name} />
-                            ) : (
-                              <div style={{ textAlign: 'center', color: '#64748b' }}>
-                                <i className="fas fa-image" style={{ fontSize: '3.2rem', marginBottom: '0.4rem', color: '#475569' }}></i>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#94a3b8' }}>No Photo</div>
-                              </div>
-                            )}
-                            <span className="ledger-card-badge">BAG {bagIdx}</span>
-                            <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg/bag</span>
-                          </div>
-
-                          <div className="ledger-card-body">
-                            <div>
-                              <div className="ledger-card-kicker" style={{ color: '#059669' }}>INWARD RECEIPT</div>
-                              <h3 className="ledger-card-title">{row.variety_name}</h3>
-                              {row.latest_party && row.latest_party !== '-' && (
-                                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '3px' }}>
-                                  Supplier: <strong style={{ color: '#0f172a' }}>{row.latest_party}</strong>
-                                </div>
-                              )}
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#64748b' }}>Opening Stock:</span>
-                                <strong style={{ color: '#334155' }}>{formatBags(row.opening_bags)}</strong>
-                              </div>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#059669', fontWeight: 700 }}>Inward Bags (+):</span>
-                                <strong style={{ color: '#059669', fontSize: '0.92rem' }}>+{formatBags(row.inward_bags)}</strong>
-                              </div>
-                              <div className="ledger-card-meta-row" style={{ background: '#eff6ff', padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                                <span style={{ color: '#1d4ed8', fontWeight: 700 }}>Remaining Balance:</span>
-                                <strong style={{ color: '#1d4ed8', fontSize: '1rem' }}>{formatBags(row.closing_bags)} bags</strong>
-                              </div>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#64748b' }}>Purchase Rate:</span>
-                                <strong style={{ color: '#0f172a' }}>₹{row.rate_per_bag} / bag</strong>
-                              </div>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#64748b' }}>Total Inward Valuation:</span>
-                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{formatINR(row.total_value)}</strong>
-                              </div>
-                            </div>
-
-                            <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#2563eb', fontWeight: 600, paddingTop: '0.3rem', borderTop: '1px solid #f1f5f9' }}>
-                              <i className="fas fa-list-check" style={{ marginRight: '4px' }}></i> Click to view itemized history
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                    {inwardRows.length === 0 && (
-                      <div className="card" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No inward records found.</div>
-                    )}
-                  </div>
+            /* ─── OUTWARD SINGLE CARDS VIEW ─── */
+            <div style={{ width: '100%' }}>
+              <div className="ledger-col-header col-hdr-outward" style={{ marginBottom: '1.25rem' }}>
+                <div className="col-hdr-title">
+                  <i className="fas fa-truck-ramp-box"></i>
+                  <span>OUTWARD EMPTY BAGS</span>
+                </div>
+                <span className="col-hdr-count">{outwardRows.length} Varieties</span>
+              </div>
+              <div className="ledger-single-cards-grid">
+                {outwardRows.map((row, idx) => (
+                  <LedgerStockCard 
+                    key={row.variety_id || idx}
+                    row={row}
+                    type="outward"
+                    index={idx}
+                    onSelectVariety={setSelectedVarietyId}
+                    onPreviewPhoto={setPreviewPhoto}
+                    getPhotoInfo={getPhotoInfo}
+                  />
+                ))}
+              </div>
+              {outwardRows.length === 0 && (
+                <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                  No outward records found matching the current filters.
                 </div>
               )}
-
-              {/* RIGHT SIDE: OUTWARD EMPTY BAGS CARDS */}
-              {showOutward && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.25rem', borderBottom: '2px solid #ef4444' }}>
-                    <div style={{ color: '#dc2626', fontWeight: 800, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <i className="fas fa-truck-ramp-box"></i> 🔴 OUTWARD EMPTY BAGS
-                    </div>
-                    <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '0.2rem 0.6rem', borderRadius: '6px', border: '1px solid #fecaca' }}>
-                      {outwardRows.length} Varieties
-                    </span>
-                  </div>
-
-                  <div className="split-cards-column">
-                    {outwardRows.map((row, idx) => {
-                      const photoInfo = getPhotoInfo(row);
-                      const bagIdx = String(idx + 1).padStart(2, '0');
-                      return (
-                        <article 
-                          key={row.variety_id || idx} 
-                          className="ledger-stock-card"
-                          onClick={() => setSelectedVarietyId(row.variety_id)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <div 
-                            className="ledger-card-photo-wrap"
-                            onClick={(e) => {
-                              if (photoInfo.src) {
-                                e.stopPropagation();
-                                setPreviewPhoto(photoInfo);
-                              }
-                            }}
-                            title="Click to view full high-res photo"
-                          >
-                            {photoInfo.src ? (
-                              <img src={photoInfo.src} alt={photoInfo.name} />
-                            ) : (
-                              <div style={{ textAlign: 'center', color: '#64748b' }}>
-                                <i className="fas fa-image" style={{ fontSize: '3.2rem', marginBottom: '0.4rem', color: '#475569' }}></i>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#94a3b8' }}>No Photo</div>
-                              </div>
-                            )}
-                            <span className="ledger-card-badge">BAG {bagIdx}</span>
-                            <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg/bag</span>
-                          </div>
-
-                          <div className="ledger-card-body">
-                            <div>
-                              <div className="ledger-card-kicker" style={{ color: '#dc2626' }}>OUTWARD ISSUE</div>
-                              <h3 className="ledger-card-title">{row.variety_name}</h3>
-                              {row.latest_party && row.latest_party !== '-' && (
-                                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '3px' }}>
-                                  Party / Unit: <strong style={{ color: '#0f172a' }}>{row.latest_party}</strong>
-                                </div>
-                              )}
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#64748b' }}>Opening Stock:</span>
-                                <strong style={{ color: '#334155' }}>{formatBags(row.opening_bags)}</strong>
-                              </div>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#dc2626', fontWeight: 700 }}>Outward Bags (-):</span>
-                                <strong style={{ color: '#dc2626', fontSize: '0.92rem' }}>-{formatBags(row.outward_bags)}</strong>
-                              </div>
-                              <div className="ledger-card-meta-row" style={{ background: '#eff6ff', padding: '0.45rem 0.6rem', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                                <span style={{ color: '#1d4ed8', fontWeight: 700 }}>Remaining Balance:</span>
-                                <strong style={{ color: '#1d4ed8', fontSize: '1rem' }}>{formatBags(row.closing_bags)} bags</strong>
-                              </div>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#64748b' }}>Issue Rate:</span>
-                                <strong style={{ color: '#0f172a' }}>₹{row.rate_per_bag} / bag</strong>
-                              </div>
-                              <div className="ledger-card-meta-row">
-                                <span style={{ color: '#64748b' }}>Total Outward Valuation:</span>
-                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{formatINR(row.total_value)}</strong>
-                              </div>
-                            </div>
-
-                            <div style={{ textAlign: 'center', fontSize: '0.74rem', color: '#2563eb', fontWeight: 600, paddingTop: '0.3rem', borderTop: '1px solid #f1f5f9' }}>
-                              <i className="fas fa-list-check" style={{ marginRight: '4px' }}></i> Click to view itemized history
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-                    {outwardRows.length === 0 && (
-                      <div className="card" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>No outward records found.</div>
-                    )}
-                  </div>
-                </div>
-              )}
-
             </div>
           )}
         </div>

@@ -1099,47 +1099,123 @@ select.input {
   width: 100%;
 }
 
-.ledger-split-grid {
+/* ═══════════════════════════════════════════════════════════════════
+   EMPTY BAGS LEDGER - PREMIUM CARDS & EQUAL HEIGHT SPLIT VIEW
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ledger-split-top-header {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
   width: 100%;
 }
 
 @media (max-width: 960px) {
-  .ledger-split-grid {
-    grid-template-columns: 1fr !important;
+  .ledger-split-top-header {
+    display: none;
   }
 }
 
-.split-cards-column {
+.ledger-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.15rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.col-hdr-inward {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  color: #166534;
+}
+
+.col-hdr-outward {
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  color: #991b1b;
+}
+
+.col-hdr-title {
+  font-size: 1rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  letter-spacing: 0.03em;
+}
+
+.col-hdr-count {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.col-hdr-inward .col-hdr-count {
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.col-hdr-outward .col-hdr-count {
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.ledger-pairs-container {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.ledger-pair-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: stretch; /* Guarantees Left and Right cards are 100% equal height */
+  width: 100%;
+}
+
+@media (max-width: 960px) {
+  .ledger-pair-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ledger-single-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
   width: 100%;
 }
 
 .ledger-stock-card {
   background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .ledger-stock-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
   border-color: #cbd5e1;
 }
 
 .ledger-card-photo-wrap {
   position: relative;
   height: 290px;
-  background: #0f172a;
+  background: radial-gradient(circle at center, #f8fafc 0%, #edf2f7 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1149,15 +1225,35 @@ select.input {
 }
 
 .ledger-card-photo-wrap img {
-  width: 100%;
-  height: 100%;
+  max-width: 92%;
+  max-height: 92%;
+  width: auto;
+  height: auto;
   object-fit: contain;
-  transition: transform 0.25s ease;
-  padding: 10px;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.1));
 }
 
 .ledger-card-photo-wrap:hover img {
   transform: scale(1.06);
+}
+
+.ledger-no-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  color: #94a3b8;
+}
+
+.ledger-no-photo i {
+  font-size: 3.2rem;
+  color: #cbd5e1;
+}
+
+.ledger-no-photo span {
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .ledger-card-badge {
@@ -1165,30 +1261,30 @@ select.input {
   top: 12px;
   left: 12px;
   background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
   border: 1px solid #e2e8f0;
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 0.74rem;
+  padding: 4px 11px;
+  font-size: 0.72rem;
   font-weight: 800;
   color: #0f172a;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-  letter-spacing: 0.04em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  letter-spacing: 0.06em;
 }
 
 .ledger-card-weight-badge {
   position: absolute;
   top: 12px;
   right: 12px;
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(6px);
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 0.74rem;
+  padding: 4px 11px;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .ledger-card-body {
@@ -1197,33 +1293,224 @@ select.input {
   flex-direction: column;
   gap: 0.85rem;
   flex: 1;
+  justify-content: space-between;
   background: #ffffff;
 }
 
+.ledger-card-header-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 84px;
+}
+
 .ledger-card-kicker {
-  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
   font-weight: 800;
-  text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #94a3b8;
-  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.kicker-inward {
+  color: #059669;
+}
+
+.kicker-outward {
+  color: #dc2626;
 }
 
 .ledger-card-title {
-  font-size: 1.05rem;
+  font-size: 1.12rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
   line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.ledger-card-meta-row {
+.ledger-card-party-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  margin-top: 0.15rem;
+  overflow: hidden;
+}
+
+.ledger-card-party-tag i {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.party-label {
+  color: #64748b;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.party-name {
+  color: #0f172a;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.ledger-metric-tile {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.metric-tile-green {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.metric-tile-red {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.metric-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.metric-value small {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.text-slate {
+  color: #0f172a;
+}
+
+.text-green {
+  color: #16a34a;
+}
+
+.text-red {
+  color: #dc2626;
+}
+
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.ledger-balance-banner {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1.5px solid #93c5fd;
+  border-radius: 12px;
+  padding: 0.65rem 0.95rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.82rem;
-  padding: 0.4rem 0;
-  border-top: 1px dashed #f1f5f9;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
 }
+
+.balance-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1e40af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.balance-left i {
+  font-size: 0.95rem;
+  color: #2563eb;
+}
+
+.balance-right {
+  font-size: 1.05rem;
+  color: #1e40af;
+}
+
+.balance-right strong {
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.balance-right small {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.ledger-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.6rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #2563eb;
+  transition: color 0.15s ease;
+}
+
+.ledger-stock-card:hover .ledger-card-footer {
+  color: #1d4ed8;
+}
+
+.ledger-stock-card:hover .ledger-card-footer i {
+  transform: translateX(4px);
+}
+
+.ledger-card-footer i {
+  transition: transform 0.2s ease;
+  font-size: 0.72rem;
+}
+
+.ledger-empty-placeholder {
+  border: 2px dashed #cbd5e1;
+  border-radius: 18px;
+  min-height: 480px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 0.9rem;
+  background: #f8fafc;
+}
+
 
 
