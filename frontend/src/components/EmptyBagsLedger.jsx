@@ -83,7 +83,10 @@ const EmptyBagsLedger = () => {
 
   const getPhotoInfo = (row) => {
     const v = varietyMap.get(row.variety_id);
-    const src = row.photo_url || row.photo_data || v?.photo_url || v?.photo_data || (v?.photo ? (typeof v.photo === 'string' && v.photo.startsWith('http') ? v.photo : `${window.location.origin}${v.photo}`) : null);
+    let src = row.photo_data || v?.photo_data || row.photo_url || v?.photo_url || v?.photo || null;
+    if (src && typeof src === 'string' && !src.startsWith('data:') && !src.startsWith('http') && !src.startsWith('/')) {
+      src = `${window.location.origin}/${src}`;
+    }
     return {
       src: src || null,
       name: row.variety_name || v?.name || 'Variety Bag',
@@ -348,48 +351,48 @@ const EmptyBagsLedger = () => {
         </div>
       ) : (
         /* ─── SPLIT & TABLE VIEW (LEFT: INWARD with Images | RIGHT: OUTWARD with Images) ─── */
-        <div style={{ display: 'grid', gridTemplateColumns: isSplit ? '1fr 1fr' : '1fr', gap: '1.25rem', marginBottom: '1.25rem', width: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isSplit ? '1fr 1fr' : '1fr', gap: '1rem', marginBottom: '1.25rem', width: '100%' }}>
           
           {/* LEFT SIDE: INWARD EMPTY BAGS LEDGER */}
           {showInward && (
-            <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981', padding: isSplit ? '0.85rem' : '1.15rem' }}>
-              <div className="card-hdr" style={{ paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>
-                <div className="card-title" style={{ color: '#059669', fontSize: isSplit ? '0.88rem' : '0.95rem' }}>
+            <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981', padding: isSplit ? '0.75rem' : '1.15rem', overflow: 'hidden' }}>
+              <div className="card-hdr" style={{ paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
+                <div className="card-title" style={{ color: '#059669', fontSize: isSplit ? '0.86rem' : '0.95rem' }}>
                   <i className="fas fa-boxes-packing"></i> Inward Empty Bags Ledger
                 </div>
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '0.15rem 0.5rem', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
                   {inwardRows.length} Varieties
                 </span>
               </div>
-              <div className="tbl-wrap">
-                <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%' }}>
+              <div className="tbl-wrap" style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%', minWidth: isSplit ? '480px' : '650px' }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'center', width: isSplit ? '22px' : '30px', padding: isSplit ? '4px 2px' : '6px 6px' }}>SL</th>
-                      <th style={{ textAlign: 'center', width: isSplit ? '36px' : '44px', padding: isSplit ? '4px 2px' : '6px 4px' }}>Photo</th>
-                      <th style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Variety' : 'Variety Name'}</th>
-                      <th style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Party' : 'Party / Supplier'}</th>
-                      <th style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 8px' }}>Op.</th>
-                      <th style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>Rate</th>
-                      <th style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>{isSplit ? 'P/B' : 'P/B Cost'}</th>
-                      <th style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>LF</th>
-                      <th style={{ textAlign: 'center', padding: isSplit ? '4px 3px' : '6px 8px' }}>{isSplit ? 'In' : 'Inward Bags'}</th>
-                      <th style={{ textAlign: 'center', padding: isSplit ? '4px 3px' : '6px 8px' }}>{isSplit ? 'Rem' : 'Remaining'}</th>
-                      <th style={{ textAlign: 'right', padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Total' : 'Total Value'}</th>
+                      <th style={{ textAlign: 'center', width: '24px', padding: '4px 2px' }}>SL</th>
+                      <th style={{ textAlign: 'center', width: '38px', padding: '4px 2px' }}>Photo</th>
+                      <th style={{ padding: '4px 4px' }}>{isSplit ? 'Variety' : 'Variety Name'}</th>
+                      <th style={{ padding: '4px 4px' }}>{isSplit ? 'Party' : 'Party / Supplier'}</th>
+                      {!isSplit && <th style={{ textAlign: 'center', padding: '4px 4px' }}>Op.</th>}
+                      <th style={{ textAlign: 'right', padding: '4px 4px' }}>Rate</th>
+                      {!isSplit && <th style={{ textAlign: 'right', padding: '4px 4px' }}>P/B</th>}
+                      {!isSplit && <th style={{ textAlign: 'right', padding: '4px 4px' }}>LF</th>}
+                      <th style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'In' : 'Inward Bags'}</th>
+                      <th style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'Rem' : 'Remaining'}</th>
+                      <th style={{ textAlign: 'right', padding: '4px 4px' }}>{isSplit ? 'Total' : 'Total Value'}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan="11" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading inward ledger...</td></tr>
+                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading inward ledger...</td></tr>
                     ) : (
                       inwardRows.map((row, idx) => {
                         const photoInfo = getPhotoInfo(row);
                         return (
                           <tr key={row.variety_id || idx}>
-                            <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: isSplit ? '4px 2px' : '6px 6px' }}>{idx + 1}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: '4px 2px' }}>{idx + 1}</td>
                             
                             {/* BAG IMAGE THUMBNAIL (CLICK TO ZOOM) */}
-                            <td style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 4px' }}>
+                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>
                               {photoInfo.src ? (
                                 <button 
                                   className="ledger-photo-btn"
@@ -409,32 +412,32 @@ const EmptyBagsLedger = () => {
                               )}
                             </td>
 
-                            <td className="wrap-text" style={{ padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '95px' : '170px' }}>
+                            <td style={{ padding: '4px 4px', maxWidth: isSplit ? '105px' : '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               <button 
                                 onClick={() => setSelectedVarietyId(row.variety_id)} 
-                                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: isSplit ? '0.72rem' : '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                title="Click to view itemized history"
+                                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: isSplit ? '0.72rem' : '0.8rem', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '3px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                title={`${row.variety_name} - Click to view itemized history`}
                               >
-                                <i className="fas fa-up-right-from-square" style={{ fontSize: '0.6rem' }}></i>
-                                {row.variety_name} {row.kgs_per_bag ? `(${row.kgs_per_bag}k)` : ''}
+                                <i className="fas fa-up-right-from-square" style={{ fontSize: '0.6rem', flexShrink: 0 }}></i>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.variety_name} {row.kgs_per_bag ? `(${row.kgs_per_bag}k)` : ''}</span>
                               </button>
                             </td>
-                            <td className="wrap-text" style={{ color: '#334155', fontWeight: 600, padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '80px' : '140px' }}>
+                            <td style={{ color: '#334155', fontWeight: 600, padding: '4px 4px', maxWidth: isSplit ? '85px' : '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.latest_party || '-'}>
                               {row.latest_party || '-'}
                             </td>
-                            <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, padding: isSplit ? '4px 2px' : '6px 8px' }}>{formatBags(row.opening_bags)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 600, padding: isSplit ? '4px 3px' : '6px 8px' }}>₹{row.rate_per_bag}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb', padding: isSplit ? '4px 3px' : '6px 8px' }}>₹{row.rate_per_bag}</td>
-                            <td style={{ textAlign: 'right', color: '#64748b', padding: isSplit ? '4px 3px' : '6px 8px' }}>{row.lf_total > 0 ? formatINR(row.lf_total) : '-'}</td>
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#059669', padding: isSplit ? '4px 3px' : '6px 8px' }}>+{formatBags(row.inward_bags)}</td>
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#1d4ed8', padding: isSplit ? '4px 3px' : '6px 8px' }}>{formatBags(row.closing_bags)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: isSplit ? '4px 4px' : '6px 8px' }}>{formatINR(row.total_value)}</td>
+                            {!isSplit && <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, padding: '4px 4px' }}>{formatBags(row.opening_bags)}</td>}
+                            <td style={{ textAlign: 'right', fontWeight: 600, padding: '4px 4px' }}>₹{row.rate_per_bag}</td>
+                            {!isSplit && <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb', padding: '4px 4px' }}>₹{row.rate_per_bag}</td>}
+                            {!isSplit && <td style={{ textAlign: 'right', color: '#64748b', padding: '4px 4px' }}>{row.lf_total > 0 ? formatINR(row.lf_total) : '-'}</td>}
+                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#059669', padding: '4px 4px' }}>+{formatBags(row.inward_bags)}</td>
+                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#1d4ed8', padding: '4px 4px' }}>{formatBags(row.closing_bags)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: '4px 4px' }}>{formatINR(row.total_value)}</td>
                           </tr>
                         );
                       })
                     )}
                     {!loading && inwardRows.length === 0 && (
-                      <tr><td colSpan="11" style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No inward records found.</td></tr>
+                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No inward records found.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -444,44 +447,44 @@ const EmptyBagsLedger = () => {
 
           {/* RIGHT SIDE: OUTWARD EMPTY BAGS LEDGER */}
           {showOutward && (
-            <div className="card" style={{ margin: 0, borderTop: '4px solid #ef4444', padding: isSplit ? '0.85rem' : '1.15rem' }}>
-              <div className="card-hdr" style={{ paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>
-                <div className="card-title" style={{ color: '#dc2626', fontSize: isSplit ? '0.88rem' : '0.95rem' }}>
+            <div className="card" style={{ margin: 0, borderTop: '4px solid #ef4444', padding: isSplit ? '0.75rem' : '1.15rem', overflow: 'hidden' }}>
+              <div className="card-hdr" style={{ paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
+                <div className="card-title" style={{ color: '#dc2626', fontSize: isSplit ? '0.86rem' : '0.95rem' }}>
                   <i className="fas fa-truck-ramp-box"></i> Outward Empty Bags Ledger
                 </div>
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '0.15rem 0.5rem', borderRadius: '6px', border: '1px solid #fecaca' }}>
                   {outwardRows.length} Varieties
                 </span>
               </div>
-              <div className="tbl-wrap">
-                <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%' }}>
+              <div className="tbl-wrap" style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%', minWidth: isSplit ? '480px' : '650px' }}>
                   <thead>
                     <tr>
-                      <th className="outward-th" style={{ textAlign: 'center', width: isSplit ? '22px' : '30px', padding: isSplit ? '4px 2px' : '6px 6px' }}>SL</th>
-                      <th className="outward-th" style={{ textAlign: 'center', width: isSplit ? '36px' : '44px', padding: isSplit ? '4px 2px' : '6px 4px' }}>Photo</th>
-                      <th className="outward-th" style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Variety' : 'Variety Name'}</th>
-                      <th className="outward-th" style={{ padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Party' : 'Customer / Party'}</th>
-                      <th className="outward-th" style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 8px' }}>Op.</th>
-                      <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>Rate</th>
-                      <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>{isSplit ? 'P/B' : 'P/B Cost'}</th>
-                      <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 3px' : '6px 8px' }}>LF</th>
-                      <th className="outward-th" style={{ textAlign: 'center', padding: isSplit ? '4px 3px' : '6px 8px' }}>{isSplit ? 'Out' : 'Outward Bags'}</th>
-                      <th className="outward-th" style={{ textAlign: 'center', padding: isSplit ? '4px 3px' : '6px 8px' }}>{isSplit ? 'Rem' : 'Remaining'}</th>
-                      <th className="outward-th" style={{ textAlign: 'right', padding: isSplit ? '4px 4px' : '6px 8px' }}>{isSplit ? 'Total' : 'Total Value'}</th>
+                      <th className="outward-th" style={{ textAlign: 'center', width: '24px', padding: '4px 2px' }}>SL</th>
+                      <th className="outward-th" style={{ textAlign: 'center', width: '38px', padding: '4px 2px' }}>Photo</th>
+                      <th className="outward-th" style={{ padding: '4px 4px' }}>{isSplit ? 'Variety' : 'Variety Name'}</th>
+                      <th className="outward-th" style={{ padding: '4px 4px' }}>{isSplit ? 'Party' : 'Customer / Party'}</th>
+                      {!isSplit && <th className="outward-th" style={{ textAlign: 'center', padding: '4px 4px' }}>Op.</th>}
+                      <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>Rate</th>
+                      {!isSplit && <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>P/B</th>}
+                      {!isSplit && <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>LF</th>}
+                      <th className="outward-th" style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'Out' : 'Outward Bags'}</th>
+                      <th className="outward-th" style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'Rem' : 'Remaining'}</th>
+                      <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>{isSplit ? 'Total' : 'Total Value'}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr><td colSpan="11" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading outward ledger...</td></tr>
+                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading outward ledger...</td></tr>
                     ) : (
                       outwardRows.map((row, idx) => {
                         const photoInfo = getPhotoInfo(row);
                         return (
                           <tr key={row.variety_id || idx}>
-                            <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: isSplit ? '4px 2px' : '6px 6px' }}>{idx + 1}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: '4px 2px' }}>{idx + 1}</td>
 
                             {/* BAG IMAGE THUMBNAIL (CLICK TO ZOOM) */}
-                            <td style={{ textAlign: 'center', padding: isSplit ? '4px 2px' : '6px 4px' }}>
+                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>
                               {photoInfo.src ? (
                                 <button 
                                   className="ledger-photo-btn"
@@ -501,32 +504,32 @@ const EmptyBagsLedger = () => {
                               )}
                             </td>
 
-                            <td className="wrap-text" style={{ padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '95px' : '170px' }}>
+                            <td style={{ padding: '4px 4px', maxWidth: isSplit ? '105px' : '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               <button 
                                 onClick={() => setSelectedVarietyId(row.variety_id)} 
-                                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: isSplit ? '0.72rem' : '0.8rem', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Click to view itemized history"
+                                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: isSplit ? '0.72rem' : '0.8rem', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '3px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                title={`${row.variety_name} - Click to view itemized history`}
                               >
-                                <i className="fas fa-up-right-from-square" style={{ fontSize: '0.6rem' }}></i>
-                                {row.variety_name} {row.kgs_per_bag ? `(${row.kgs_per_bag}k)` : ''}
+                                <i className="fas fa-up-right-from-square" style={{ fontSize: '0.6rem', flexShrink: 0 }}></i>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.variety_name} {row.kgs_per_bag ? `(${row.kgs_per_bag}k)` : ''}</span>
                               </button>
                             </td>
-                            <td className="wrap-text" style={{ color: '#334155', fontWeight: 600, padding: isSplit ? '4px 4px' : '6px 8px', maxWidth: isSplit ? '80px' : '140px' }}>
+                            <td style={{ color: '#334155', fontWeight: 600, padding: '4px 4px', maxWidth: isSplit ? '85px' : '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.latest_party || '-'}>
                               {row.latest_party || '-'}
                             </td>
-                            <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, padding: isSplit ? '4px 2px' : '6px 8px' }}>{formatBags(row.opening_bags)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 600, padding: isSplit ? '4px 3px' : '6px 8px' }}>₹{row.rate_per_bag}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb', padding: isSplit ? '4px 3px' : '6px 8px' }}>₹{row.rate_per_bag}</td>
-                            <td style={{ textAlign: 'right', color: '#64748b', padding: isSplit ? '4px 3px' : '6px 8px' }}>{row.lf_total > 0 ? formatINR(row.lf_total) : '-'}</td>
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#dc2626', padding: isSplit ? '4px 3px' : '6px 8px' }}>-{formatBags(row.outward_bags)}</td>
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#1d4ed8', padding: isSplit ? '4px 3px' : '6px 8px' }}>{formatBags(row.closing_bags)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: isSplit ? '4px 4px' : '6px 8px' }}>{formatINR(row.total_value)}</td>
+                            {!isSplit && <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, padding: '4px 4px' }}>{formatBags(row.opening_bags)}</td>}
+                            <td style={{ textAlign: 'right', fontWeight: 600, padding: '4px 4px' }}>₹{row.rate_per_bag}</td>
+                            {!isSplit && <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb', padding: '4px 4px' }}>₹{row.rate_per_bag}</td>}
+                            {!isSplit && <td style={{ textAlign: 'right', color: '#64748b', padding: '4px 4px' }}>{row.lf_total > 0 ? formatINR(row.lf_total) : '-'}</td>}
+                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#dc2626', padding: '4px 4px' }}>-{formatBags(row.outward_bags)}</td>
+                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#1d4ed8', padding: '4px 4px' }}>{formatBags(row.closing_bags)}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: '4px 4px' }}>{formatINR(row.total_value)}</td>
                           </tr>
                         );
                       })
                     )}
                     {!loading && outwardRows.length === 0 && (
-                      <tr><td colSpan="11" style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No outward records found.</td></tr>
+                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No outward records found.</td></tr>
                     )}
                   </tbody>
                 </table>

@@ -693,7 +693,9 @@ class EmptyBagsStockLedgerAPIView(APIView):
             total_val = float(round(Decimal(str(closing_bags * rate_per_bag)), 2))
 
             photo_url = None
-            if v.photo:
+            if v.photo_data:
+                photo_url = v.photo_data
+            elif v.photo:
                 try:
                     photo_url = request.build_absolute_uri(v.photo.url)
                 except Exception:
