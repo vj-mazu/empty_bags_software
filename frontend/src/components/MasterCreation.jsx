@@ -304,7 +304,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
         formData.append('photo_data', varietyForm.photo_data);
       }
       if (varietyForm.photo) {
-        formData.append('photo', varietyForm.photo);
+        formData.append('photo', varietyForm.photo, `variety_${Date.now()}.jpg`);
       }
 
       if (editVarietyId) {
