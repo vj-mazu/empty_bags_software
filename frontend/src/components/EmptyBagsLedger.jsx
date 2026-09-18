@@ -34,8 +34,8 @@ const LedgerStockCard = ({ row, type, index, onSelectVariety, onPreviewPhoto, ge
             <span>No Photo Uploaded</span>
           </div>
         )}
-        <span className="ledger-card-badge">BAG {bagIdx}</span>
-        <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg/bag</span>
+        <span className="ledger-card-badge">{bagIdx}</span>
+        <span className="ledger-card-weight-badge">⚖️ {row.kgs_per_bag || 0} kg</span>
       </div>
 
       {/* CARD CONTENT BODY */}
@@ -76,7 +76,7 @@ const LedgerStockCard = ({ row, type, index, onSelectVariety, onPreviewPhoto, ge
           {/* Tile 3: Rate */}
           <div className="ledger-metric-tile">
             <span className="metric-label">{isInward ? 'Purchase Rate' : 'Issue Rate'}</span>
-            <span className="metric-value text-slate">₹{Number(row.rate_per_bag || 0).toFixed(2)} <small>/bag</small></span>
+            <span className="metric-value text-slate">{formatINR(row.rate_per_bag)} <small>/bag</small></span>
           </div>
 
           {/* Tile 4: Movement Valuation */}
