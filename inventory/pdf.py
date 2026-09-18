@@ -554,9 +554,9 @@ def generate_variety_master_pdf(varieties_data):
         c.line(15, page_h - 64, page_w - 15, page_h - 64)
         c.restoreState()
 
-    headers = ["SL", "BAG PHOTO", "VARIETY NAME", "WEIGHT / BAG", "LIVE STOCK", "STATUS"]
-    col_widths = [24, 65, 205, 85, 95, 51]  # total = 525pt, left margin = 35pt
-    alignments = ['C', 'C', 'L', 'C', 'R', 'C']
+    headers = ["SL", "BAG PHOTO", "VARIETY NAME", "WEIGHT / BAG", "LIVE STOCK"]
+    col_widths = [26, 70, 234, 90, 105]  # total = 525pt, left margin = 35pt
+    alignments = ['C', 'C', 'L', 'C', 'R']
 
     def render_table_headers(y):
         c.saveState()
@@ -597,7 +597,6 @@ def generate_variety_master_pdf(varieties_data):
         v_kgs = f"{float(v.get('kgs_per_bag', 0)):.1f} kg"
         stock_val = int(v.get('current_stock_bags', 0) or 0)
         stock_str = f"{stock_val:,} Bags"
-        status_str = "ACTIVE"
 
         bg_color = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
         c.saveState()
@@ -680,11 +679,6 @@ def generate_variety_master_pdf(varieties_data):
         else:
             c.setFillColor(colors.HexColor('#16a34a'))
         c.drawRightString(35 + sum(col_widths[:4]) + col_widths[4] - 8, cur_y - (row_height / 2.0) - 3, stock_str)
-
-        # Status
-        c.setFillColor(colors.HexColor('#059669'))
-        c.setFont("Helvetica-Bold", 7.5)
-        c.drawCentredString(35 + sum(col_widths[:5]) + (col_widths[5] / 2.0), cur_y - (row_height / 2.0) - 3, status_str)
 
         c.restoreState()
         cur_y -= row_height
