@@ -277,16 +277,6 @@ const EmptyBagsLedger = () => {
                 {outwardRows.length}
               </span>
             </button>
-
-            <button 
-              className={`master-tab-btn ${viewMode === 'table' ? 'active' : ''}`}
-              onClick={() => setViewMode('table')}
-              style={{ padding: '0.5rem 0.95rem' }}
-              title="Dense Accounting Table Ledger"
-            >
-              <i className="fas fa-table-list" style={{ color: viewMode === 'table' ? '#2563eb' : '#64748b' }}></i>
-              <span>Table View</span>
-            </button>
           </div>
 
           <button className="btn btn-green" onClick={handleDownloadPdf}>
@@ -366,321 +356,136 @@ const EmptyBagsLedger = () => {
       </div>
 
       {/* ─── VISUAL CARDS MODE (SPLIT & SINGLE) ─── */}
-      {viewMode !== 'table' ? (
-        <div>
-          {loading ? (
-            <div className="card" style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.8rem', marginBottom: '0.6rem', color: '#2563eb' }}></i>
-              <div style={{ fontWeight: 600 }}>Loading variety stock cards...</div>
-            </div>
-          ) : isSplit ? (
-            /* ─── SPLIT VIEW (PAIRED SIDE-BY-SIDE EQUAL HEIGHT ROWS) ─── */
-            <div style={{ width: '100%' }}>
-              {/* Top Column Headers */}
-              <div className="ledger-split-top-header">
-                <div className="ledger-col-header col-hdr-inward">
-                  <div className="col-hdr-title">
-                    <i className="fas fa-boxes-packing"></i>
-                    <span>INWARD EMPTY BAGS</span>
-                  </div>
-                  <span className="col-hdr-count">{inwardRows.length} Varieties</span>
-                </div>
-
-                <div className="ledger-col-header col-hdr-outward">
-                  <div className="col-hdr-title">
-                    <i className="fas fa-truck-ramp-box"></i>
-                    <span>OUTWARD EMPTY BAGS</span>
-                  </div>
-                  <span className="col-hdr-count">{outwardRows.length} Varieties</span>
-                </div>
-              </div>
-
-              {/* Paired Grid Rows: Left and Right align side-by-side with 100% equal height */}
-              <div className="ledger-pairs-container">
-                {Array.from({ length: Math.max(inwardRows.length, outwardRows.length) }).map((_, idx) => {
-                  const inRow = inwardRows[idx];
-                  const outRow = outwardRows[idx];
-                  return (
-                    <div key={inRow?.variety_id || outRow?.variety_id || idx} className="ledger-pair-row">
-                      {inRow ? (
-                        <LedgerStockCard 
-                          row={inRow} 
-                          type="inward" 
-                          index={idx}
-                          onSelectVariety={setSelectedVarietyId}
-                          onPreviewPhoto={setPreviewPhoto}
-                          getPhotoInfo={getPhotoInfo}
-                        />
-                      ) : (
-                        <div className="ledger-empty-placeholder">No Inward Record</div>
-                      )}
-
-                      {outRow ? (
-                        <LedgerStockCard 
-                          row={outRow} 
-                          type="outward" 
-                          index={idx}
-                          onSelectVariety={setSelectedVarietyId}
-                          onPreviewPhoto={setPreviewPhoto}
-                          getPhotoInfo={getPhotoInfo}
-                        />
-                      ) : (
-                        <div className="ledger-empty-placeholder">No Outward Record</div>
-                      )}
-                    </div>
-                  );
-                })}
-                {inwardRows.length === 0 && outwardRows.length === 0 && (
-                  <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
-                    No bag records found matching the current filters.
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : viewMode === 'inward' ? (
-            /* ─── INWARD SINGLE CARDS VIEW ─── */
-            <div style={{ width: '100%' }}>
-              <div className="ledger-col-header col-hdr-inward" style={{ marginBottom: '1.25rem' }}>
+      <div>
+        {loading ? (
+          <div className="card" style={{ textAlign: 'center', padding: '3.5rem', color: '#64748b' }}>
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.8rem', marginBottom: '0.6rem', color: '#2563eb' }}></i>
+            <div style={{ fontWeight: 600 }}>Loading variety stock cards...</div>
+          </div>
+        ) : isSplit ? (
+          /* ─── SPLIT VIEW (PAIRED SIDE-BY-SIDE EQUAL HEIGHT ROWS) ─── */
+          <div style={{ width: '100%' }}>
+            {/* Top Column Headers */}
+            <div className="ledger-split-top-header">
+              <div className="ledger-col-header col-hdr-inward">
                 <div className="col-hdr-title">
                   <i className="fas fa-boxes-packing"></i>
                   <span>INWARD EMPTY BAGS</span>
                 </div>
                 <span className="col-hdr-count">{inwardRows.length} Varieties</span>
               </div>
-              <div className="ledger-single-cards-grid">
-                {inwardRows.map((row, idx) => (
-                  <LedgerStockCard 
-                    key={row.variety_id || idx}
-                    row={row}
-                    type="inward"
-                    index={idx}
-                    onSelectVariety={setSelectedVarietyId}
-                    onPreviewPhoto={setPreviewPhoto}
-                    getPhotoInfo={getPhotoInfo}
-                  />
-                ))}
-              </div>
-              {inwardRows.length === 0 && (
-                <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
-                  No inward records found matching the current filters.
-                </div>
-              )}
-            </div>
-          ) : (
-            /* ─── OUTWARD SINGLE CARDS VIEW ─── */
-            <div style={{ width: '100%' }}>
-              <div className="ledger-col-header col-hdr-outward" style={{ marginBottom: '1.25rem' }}>
+
+              <div className="ledger-col-header col-hdr-outward">
                 <div className="col-hdr-title">
                   <i className="fas fa-truck-ramp-box"></i>
                   <span>OUTWARD EMPTY BAGS</span>
                 </div>
                 <span className="col-hdr-count">{outwardRows.length} Varieties</span>
               </div>
-              <div className="ledger-single-cards-grid">
-                {outwardRows.map((row, idx) => (
-                  <LedgerStockCard 
-                    key={row.variety_id || idx}
-                    row={row}
-                    type="outward"
-                    index={idx}
-                    onSelectVariety={setSelectedVarietyId}
-                    onPreviewPhoto={setPreviewPhoto}
-                    getPhotoInfo={getPhotoInfo}
-                  />
-                ))}
-              </div>
-              {outwardRows.length === 0 && (
+            </div>
+
+            {/* Paired Grid Rows: Left and Right align side-by-side with 100% equal height */}
+            <div className="ledger-pairs-container">
+              {Array.from({ length: Math.max(inwardRows.length, outwardRows.length) }).map((_, idx) => {
+                const inRow = inwardRows[idx];
+                const outRow = outwardRows[idx];
+                return (
+                  <div key={inRow?.variety_id || outRow?.variety_id || idx} className="ledger-pair-row">
+                    {inRow ? (
+                      <LedgerStockCard 
+                        row={inRow} 
+                        type="inward" 
+                        index={idx}
+                        onSelectVariety={setSelectedVarietyId}
+                        onPreviewPhoto={setPreviewPhoto}
+                        getPhotoInfo={getPhotoInfo}
+                      />
+                    ) : (
+                      <div className="ledger-empty-placeholder">No Inward Record</div>
+                    )}
+
+                    {outRow ? (
+                      <LedgerStockCard 
+                        row={outRow} 
+                        type="outward" 
+                        index={idx}
+                        onSelectVariety={setSelectedVarietyId}
+                        onPreviewPhoto={setPreviewPhoto}
+                        getPhotoInfo={getPhotoInfo}
+                      />
+                    ) : (
+                      <div className="ledger-empty-placeholder">No Outward Record</div>
+                    )}
+                  </div>
+                );
+              })}
+              {inwardRows.length === 0 && outwardRows.length === 0 && (
                 <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
-                  No outward records found matching the current filters.
+                  No bag records found matching the current filters.
                 </div>
               )}
             </div>
-          )}
-        </div>
-      ) : (
-        /* ─── TABLE VIEW (Dense Accounting Layout) ─── */
-        <div style={{ display: 'grid', gridTemplateColumns: isSplit ? '1fr 1fr' : '1fr', gap: '1rem', marginBottom: '1.25rem', width: '100%' }}>
-          
-          {/* INWARD TABLE */}
-          {showInward && (
-            <div className="card" style={{ margin: 0, borderTop: '4px solid #10b981', padding: isSplit ? '0.75rem' : '1.15rem', overflow: 'hidden' }}>
-              <div className="card-hdr" style={{ paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
-                <div className="card-title" style={{ color: '#059669', fontSize: isSplit ? '0.86rem' : '0.95rem' }}>
-                  <i className="fas fa-boxes-packing"></i> Inward Empty Bags Ledger
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '0.15rem 0.5rem', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
-                  {inwardRows.length} Varieties
-                </span>
+          </div>
+        ) : viewMode === 'inward' ? (
+          /* ─── INWARD SINGLE CARDS VIEW (6 PER ROW) ─── */
+          <div style={{ width: '100%' }}>
+            <div className="ledger-col-header col-hdr-inward" style={{ marginBottom: '1.25rem' }}>
+              <div className="col-hdr-title">
+                <i className="fas fa-boxes-packing"></i>
+                <span>INWARD EMPTY BAGS</span>
               </div>
-              <div className="tbl-wrap" style={{ overflowX: 'auto', width: '100%' }}>
-                <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%', minWidth: isSplit ? '480px' : '650px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: 'center', width: '24px', padding: '4px 2px' }}>SL</th>
-                      <th style={{ textAlign: 'center', width: '38px', padding: '4px 2px' }}>Photo</th>
-                      <th style={{ padding: '4px 4px' }}>{isSplit ? 'Variety' : 'Variety Name'}</th>
-                      <th style={{ padding: '4px 4px' }}>{isSplit ? 'Party' : 'Party / Supplier'}</th>
-                      {!isSplit && <th style={{ textAlign: 'center', padding: '4px 4px' }}>Op.</th>}
-                      <th style={{ textAlign: 'right', padding: '4px 4px' }}>Rate</th>
-                      {!isSplit && <th style={{ textAlign: 'right', padding: '4px 4px' }}>P/B</th>}
-                      {!isSplit && <th style={{ textAlign: 'right', padding: '4px 4px' }}>LF</th>}
-                      <th style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'In' : 'Inward Bags'}</th>
-                      <th style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'Rem' : 'Remaining'}</th>
-                      <th style={{ textAlign: 'right', padding: '4px 4px' }}>{isSplit ? 'Total' : 'Total Value'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading inward ledger...</td></tr>
-                    ) : (
-                      inwardRows.map((row, idx) => {
-                        const photoInfo = getPhotoInfo(row);
-                        return (
-                          <tr key={row.variety_id || idx}>
-                            <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: '4px 2px' }}>{idx + 1}</td>
-                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>
-                              {photoInfo.src ? (
-                                <button 
-                                  className="ledger-photo-btn"
-                                  onClick={() => setPreviewPhoto(photoInfo)}
-                                  title="Click to view full photo"
-                                >
-                                  <img 
-                                    src={photoInfo.src} 
-                                    alt={photoInfo.name} 
-                                    className="ledger-photo-thumb"
-                                  />
-                                </button>
-                              ) : (
-                                <div className="ledger-no-photo-thumb" title="No photo uploaded">
-                                  <i className="fas fa-image"></i>
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ padding: '4px 4px', maxWidth: isSplit ? '105px' : '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <button 
-                                onClick={() => setSelectedVarietyId(row.variety_id)} 
-                                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: isSplit ? '0.72rem' : '0.8rem', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '3px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                title={`${row.variety_name} - Click to view itemized history`}
-                              >
-                                <i className="fas fa-up-right-from-square" style={{ fontSize: '0.6rem', flexShrink: 0 }}></i>
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.variety_name} {row.kgs_per_bag ? `(${row.kgs_per_bag}k)` : ''}</span>
-                              </button>
-                            </td>
-                            <td style={{ color: '#334155', fontWeight: 600, padding: '4px 4px', maxWidth: isSplit ? '85px' : '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.latest_party || '-'}>
-                              {row.latest_party || '-'}
-                            </td>
-                            {!isSplit && <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, padding: '4px 4px' }}>{formatBags(row.opening_bags)}</td>}
-                            <td style={{ textAlign: 'right', fontWeight: 600, padding: '4px 4px' }}>₹{row.rate_per_bag}</td>
-                            {!isSplit && <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb', padding: '4px 4px' }}>₹{row.rate_per_bag}</td>}
-                            {!isSplit && <td style={{ textAlign: 'right', color: '#64748b', padding: '4px 4px' }}>{row.lf_total > 0 ? formatINR(row.lf_total) : '-'}</td>}
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#059669', padding: '4px 4px' }}>+{formatBags(row.inward_bags)}</td>
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#1d4ed8', padding: '4px 4px' }}>{formatBags(row.closing_bags)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: '4px 4px' }}>{formatINR(row.total_value)}</td>
-                          </tr>
-                        );
-                      })
-                    )}
-                    {!loading && inwardRows.length === 0 && (
-                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No inward records found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <span className="col-hdr-count">{inwardRows.length} Varieties</span>
             </div>
-          )}
-
-          {/* OUTWARD TABLE */}
-          {showOutward && (
-            <div className="card" style={{ margin: 0, borderTop: '4px solid #ef4444', padding: isSplit ? '0.75rem' : '1.15rem', overflow: 'hidden' }}>
-              <div className="card-hdr" style={{ paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
-                <div className="card-title" style={{ color: '#dc2626', fontSize: isSplit ? '0.86rem' : '0.95rem' }}>
-                  <i className="fas fa-truck-ramp-box"></i> Outward Empty Bags Ledger
-                </div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '0.15rem 0.5rem', borderRadius: '6px', border: '1px solid #fecaca' }}>
-                  {outwardRows.length} Varieties
-                </span>
-              </div>
-              <div className="tbl-wrap" style={{ overflowX: 'auto', width: '100%' }}>
-                <table style={{ fontSize: isSplit ? '0.72rem' : '0.8rem', width: '100%', minWidth: isSplit ? '480px' : '650px' }}>
-                  <thead>
-                    <tr>
-                      <th className="outward-th" style={{ textAlign: 'center', width: '24px', padding: '4px 2px' }}>SL</th>
-                      <th className="outward-th" style={{ textAlign: 'center', width: '38px', padding: '4px 2px' }}>Photo</th>
-                      <th className="outward-th" style={{ padding: '4px 4px' }}>{isSplit ? 'Variety' : 'Variety Name'}</th>
-                      <th className="outward-th" style={{ padding: '4px 4px' }}>{isSplit ? 'Party' : 'Customer / Party'}</th>
-                      {!isSplit && <th className="outward-th" style={{ textAlign: 'center', padding: '4px 4px' }}>Op.</th>}
-                      <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>Rate</th>
-                      {!isSplit && <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>P/B</th>}
-                      {!isSplit && <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>LF</th>}
-                      <th className="outward-th" style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'Out' : 'Outward Bags'}</th>
-                      <th className="outward-th" style={{ textAlign: 'center', padding: '4px 4px' }}>{isSplit ? 'Rem' : 'Remaining'}</th>
-                      <th className="outward-th" style={{ textAlign: 'right', padding: '4px 4px' }}>{isSplit ? 'Total' : 'Total Value'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading outward ledger...</td></tr>
-                    ) : (
-                      outwardRows.map((row, idx) => {
-                        const photoInfo = getPhotoInfo(row);
-                        return (
-                          <tr key={row.variety_id || idx}>
-                            <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b', padding: '4px 2px' }}>{idx + 1}</td>
-                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>
-                              {photoInfo.src ? (
-                                <button 
-                                  className="ledger-photo-btn"
-                                  onClick={() => setPreviewPhoto(photoInfo)}
-                                  title="Click to view full photo"
-                                >
-                                  <img 
-                                    src={photoInfo.src} 
-                                    alt={photoInfo.name} 
-                                    className="ledger-photo-thumb"
-                                  />
-                                </button>
-                              ) : (
-                                <div className="ledger-no-photo-thumb" title="No photo uploaded">
-                                  <i className="fas fa-image"></i>
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ padding: '4px 4px', maxWidth: isSplit ? '105px' : '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <button 
-                                onClick={() => setSelectedVarietyId(row.variety_id)} 
-                                style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: isSplit ? '0.72rem' : '0.8rem', textAlign: 'left', display: 'inline-flex', alignItems: 'center', gap: '3px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                title={`${row.variety_name} - Click to view itemized history`}
-                              >
-                                <i className="fas fa-up-right-from-square" style={{ fontSize: '0.6rem', flexShrink: 0 }}></i>
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.variety_name} {row.kgs_per_bag ? `(${row.kgs_per_bag}k)` : ''}</span>
-                              </button>
-                            </td>
-                            <td style={{ color: '#334155', fontWeight: 600, padding: '4px 4px', maxWidth: isSplit ? '85px' : '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.latest_party || '-'}>
-                              {row.latest_party || '-'}
-                            </td>
-                            {!isSplit && <td style={{ textAlign: 'center', color: '#64748b', fontWeight: 600, padding: '4px 4px' }}>{formatBags(row.opening_bags)}</td>}
-                            <td style={{ textAlign: 'right', fontWeight: 600, padding: '4px 4px' }}>₹{row.rate_per_bag}</td>
-                            {!isSplit && <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb', padding: '4px 4px' }}>₹{row.rate_per_bag}</td>}
-                            {!isSplit && <td style={{ textAlign: 'right', color: '#64748b', padding: '4px 4px' }}>{row.lf_total > 0 ? formatINR(row.lf_total) : '-'}</td>}
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#dc2626', padding: '4px 4px' }}>-{formatBags(row.outward_bags)}</td>
-                            <td style={{ fontWeight: 800, textAlign: 'center', color: '#1d4ed8', padding: '4px 4px' }}>{formatBags(row.closing_bags)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a', padding: '4px 4px' }}>{formatINR(row.total_value)}</td>
-                          </tr>
-                        );
-                      })
-                    )}
-                    {!loading && outwardRows.length === 0 && (
-                      <tr><td colSpan={isSplit ? 8 : 11} style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>No outward records found.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            <div className="ledger-single-cards-grid">
+              {inwardRows.map((row, idx) => (
+                <LedgerStockCard 
+                  key={row.variety_id || idx}
+                  row={row}
+                  type="inward"
+                  index={idx}
+                  onSelectVariety={setSelectedVarietyId}
+                  onPreviewPhoto={setPreviewPhoto}
+                  getPhotoInfo={getPhotoInfo}
+                />
+              ))}
             </div>
-          )}
-
-        </div>
-      )}
+            {inwardRows.length === 0 && (
+              <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                No inward records found matching the current filters.
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ─── OUTWARD SINGLE CARDS VIEW (6 PER ROW) ─── */
+          <div style={{ width: '100%' }}>
+            <div className="ledger-col-header col-hdr-outward" style={{ marginBottom: '1.25rem' }}>
+              <div className="col-hdr-title">
+                <i className="fas fa-truck-ramp-box"></i>
+                <span>OUTWARD EMPTY BAGS</span>
+              </div>
+              <span className="col-hdr-count">{outwardRows.length} Varieties</span>
+            </div>
+            <div className="ledger-single-cards-grid">
+              {outwardRows.map((row, idx) => (
+                <LedgerStockCard 
+                  key={row.variety_id || idx}
+                  row={row}
+                  type="outward"
+                  index={idx}
+                  onSelectVariety={setSelectedVarietyId}
+                  onPreviewPhoto={setPreviewPhoto}
+                  getPhotoInfo={getPhotoInfo}
+                />
+              ))}
+            </div>
+            {outwardRows.length === 0 && (
+              <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: '#64748b' }}>
+                No outward records found matching the current filters.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* VARIETY DETAILED BREAKDOWN MODAL */}
       {selectedVarietyId && (

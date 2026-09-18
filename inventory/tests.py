@@ -282,3 +282,16 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
         res2 = self.client.post('/api/inward/', payload2, format='json')
         self.assertEqual(res2.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Duplicate entry detected', str(res2.data[0]))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 9. TEST VARIETY MASTER PDF CATALOG EXPORT
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_variety_master_pdf_export(self):
+        """Test downloading Variety Master PDF catalog with embedded data."""
+        self.client.force_authenticate(user=self.owner_user)
+        res = self.client.get('/api/varieties/export-pdf/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res['Content-Type'], 'application/pdf')
+        self.assertIn('inline; filename="Variety_Master_Catalog.pdf"', res['Content-Disposition'])
+        self.assertTrue(res.content.startswith(b'%PDF'))
+

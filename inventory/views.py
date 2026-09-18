@@ -16,7 +16,7 @@ from .serializers import (
     UserProfileSerializer, PlaceSerializer, PartySerializer, VarietySerializer,
     InwardSerializer, OutwardSerializer, DailyStockSummarySerializer
 )
-from .pdf import generate_4up_a4_invoice
+from .pdf import generate_4up_a4_invoice, generate_variety_master_pdf
 
 
 def get_current_business_date():
@@ -780,6 +780,20 @@ class OutwardInvoicePDFView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="Outward_Invoice_{outward.invoice_no}.pdf"'
         return response
+
+
+class VarietyMasterPDFView(APIView):
+    """Generates and downloads a complete Variety Master Catalog PDF with embedded bag images and data."""
+    def get(self, request):
+        qs = Variety.objects.all().order_by('name')
+        annotated_qs = _annotate_varieties(qs)
+        serializer = VarietySerializer(annotated_qs, many=True, context={'request': request})
+        pdf_bytes = generate_variety_master_pdf(serializer.data)
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="Variety_Master_Catalog.pdf"'
+        return response
+
 
 
 class VarietyDetailLedgerAPIView(APIView):

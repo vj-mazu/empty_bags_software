@@ -1,8 +1,12 @@
 import io
+import base64
+from io import BytesIO
+from datetime import date
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.lib.utils import ImageReader
 
 def format_date_dmy(d_str):
     """Formats date string to Day/Month/Year (DD/MM/YYYY)."""
@@ -511,3 +515,194 @@ def generate_ledger_summary_pdf(title, date_str, inwards_data, outwards_data):
     pdf_out = buffer.getvalue()
     buffer.close()
     return pdf_out
+
+
+def generate_variety_master_pdf(varieties_data):
+    """
+    Generates a professional A4 Variety Master PDF Catalog containing:
+    - Company branding header
+    - High-resolution embedded bag photos (via ImageReader)
+    - Full variety data (name, weight, live stock position, active status)
+    - Multi-page pagination support
+    """
+    buffer = io.BytesIO()
+    page_w, page_h = A4
+    c = canvas.Canvas(buffer, pagesize=A4)
+    c.setTitle("Variety Master Catalog - Mother India Mill")
+
+    def draw_header():
+        c.saveState()
+        # Header banner
+        c.setFillColor(colors.HexColor('#1e3a8a'))
+        c.rect(0, page_h - 45, page_w, 45, fill=True, stroke=False)
+        
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(15, page_h - 26, "MOTHER INDIA MILL")
+        
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawRightString(page_w - 15, page_h - 26, "VARIETY MASTER CATALOG")
+        
+        # Subtitle row
+        c.setFillColor(colors.HexColor('#475569'))
+        c.setFont("Helvetica", 8.5)
+        c.drawString(15, page_h - 58, f"Total Varieties: {len(varieties_data)}")
+        c.drawRightString(page_w - 15, page_h - 58, f"Generated Date: {format_date_dmy(date.today().isoformat())}")
+        
+        c.setStrokeColor(colors.HexColor('#cbd5e1'))
+        c.setLineWidth(0.75)
+        c.line(15, page_h - 64, page_w - 15, page_h - 64)
+        c.restoreState()
+
+    headers = ["SL", "BAG PHOTO", "VARIETY NAME", "WEIGHT / BAG", "LIVE STOCK", "STATUS"]
+    col_widths = [24, 65, 205, 85, 95, 51]  # total = 525pt, left margin = 35pt
+    alignments = ['C', 'C', 'L', 'C', 'R', 'C']
+
+    def render_table_headers(y):
+        c.saveState()
+        c.setStrokeColor(colors.HexColor('#334155'))
+        c.setLineWidth(0.6)
+        x_pos = 35
+        for h, w, al in zip(headers, col_widths, alignments):
+            c.setFillColor(colors.HexColor('#1e293b'))
+            c.rect(x_pos, y - 16, w, 16, fill=True, stroke=True)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 7.5)
+            if al == 'C':
+                c.drawCentredString(x_pos + (w / 2.0), y - 11.5, h)
+            elif al == 'R':
+                c.drawRightString(x_pos + w - 5, y - 11.5, h)
+            else:
+                c.drawString(x_pos + 6, y - 11.5, h)
+            x_pos += w
+        c.restoreState()
+
+    cur_y = page_h - 76
+    draw_header()
+    render_table_headers(cur_y)
+    cur_y -= 16
+
+    row_height = 58  # 58pt row height to accommodate 48x48pt photo thumbnail
+
+    for idx, v in enumerate(varieties_data):
+        # Check if new page needed
+        if cur_y - row_height < 45:
+            c.showPage()
+            draw_header()
+            cur_y = page_h - 76
+            render_table_headers(cur_y)
+            cur_y -= 16
+
+        v_name = str(v.get('name') or '-')
+        v_kgs = f"{float(v.get('kgs_per_bag', 0)):.1f} kg"
+        stock_val = int(v.get('current_stock_bags', 0) or 0)
+        stock_str = f"{stock_val:,} Bags"
+        status_str = "ACTIVE"
+
+        bg_color = colors.HexColor('#f8fafc') if idx % 2 == 0 else colors.white
+        c.saveState()
+        
+        # Row border & background
+        c.setFillColor(bg_color)
+        c.setStrokeColor(colors.HexColor('#e2e8f0'))
+        c.setLineWidth(0.5)
+        c.rect(35, cur_y - row_height, sum(col_widths), row_height, fill=True, stroke=True)
+
+        # SL
+        c.setFillColor(colors.HexColor('#64748b'))
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(35 + (col_widths[0] / 2.0), cur_y - (row_height / 2.0) - 3, str(idx + 1))
+
+        # Photo thumbnail
+        photo_x = 35 + col_widths[0] + (col_widths[1] - 48) / 2.0
+        photo_y = cur_y - row_height + (row_height - 48) / 2.0
+        photo_drawn = False
+
+        photo_data = v.get('photo_data') or ''
+        photo_obj = v.get('photo')
+
+        img_reader = None
+        try:
+            if photo_data:
+                b64_str = photo_data
+                if ',' in b64_str:
+                    b64_str = b64_str.split(',', 1)[1]
+                img_bytes = base64.b64decode(b64_str)
+                img_reader = ImageReader(BytesIO(img_bytes))
+            elif photo_obj and hasattr(photo_obj, 'path'):
+                img_reader = ImageReader(photo_obj.path)
+            elif photo_obj and isinstance(photo_obj, str) and photo_obj.startswith('data:'):
+                b64_str = photo_obj.split(',', 1)[1]
+                img_bytes = base64.b64decode(b64_str)
+                img_reader = ImageReader(BytesIO(img_bytes))
+        except Exception:
+            img_reader = None
+
+        if img_reader:
+            try:
+                # White backdrop box with subtle border for the image
+                c.setFillColor(colors.white)
+                c.setStrokeColor(colors.HexColor('#cbd5e1'))
+                c.setLineWidth(0.5)
+                c.rect(photo_x, photo_y, 48, 48, fill=True, stroke=True)
+                c.drawImage(img_reader, photo_x + 1, photo_y + 1, 46, 46, preserveAspectRatio=True, anchor='c')
+                photo_drawn = True
+            except Exception:
+                photo_drawn = False
+
+        if not photo_drawn:
+            # Placeholder box
+            c.setFillColor(colors.HexColor('#f1f5f9'))
+            c.setStrokeColor(colors.HexColor('#cbd5e1'))
+            c.setLineWidth(0.5)
+            c.rect(photo_x, photo_y, 48, 48, fill=True, stroke=True)
+            c.setFillColor(colors.HexColor('#94a3b8'))
+            c.setFont("Helvetica", 6.5)
+            c.drawCentredString(photo_x + 24, photo_y + 20, "NO PHOTO")
+
+        # Variety Name
+        c.setFillColor(colors.HexColor('#0f172a'))
+        c.setFont("Helvetica-Bold", 8.5)
+        name_lines = wrap_text_by_width(v_name, "Helvetica-Bold", 8.5, col_widths[2] - 12)
+        start_name_y = cur_y - (row_height / 2.0) + ((len(name_lines) - 1) * 5)
+        for line_idx, n_line in enumerate(name_lines):
+            c.drawString(35 + col_widths[0] + col_widths[1] + 6, start_name_y - (line_idx * 11), n_line)
+
+        # Weight
+        c.setFillColor(colors.HexColor('#1d4ed8'))
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawCentredString(35 + sum(col_widths[:3]) + (col_widths[3] / 2.0), cur_y - (row_height / 2.0) - 3, v_kgs)
+
+        # Stock Position
+        c.setFont("Helvetica-Bold", 8.5)
+        if stock_val < 2000:
+            c.setFillColor(colors.HexColor('#dc2626'))
+        else:
+            c.setFillColor(colors.HexColor('#16a34a'))
+        c.drawRightString(35 + sum(col_widths[:4]) + col_widths[4] - 8, cur_y - (row_height / 2.0) - 3, stock_str)
+
+        # Status
+        c.setFillColor(colors.HexColor('#059669'))
+        c.setFont("Helvetica-Bold", 7.5)
+        c.drawCentredString(35 + sum(col_widths[:5]) + (col_widths[5] / 2.0), cur_y - (row_height / 2.0) - 3, status_str)
+
+        c.restoreState()
+        cur_y -= row_height
+
+    # Footer summary
+    c.saveState()
+    c.setFillColor(colors.HexColor('#1e293b'))
+    c.rect(35, cur_y - 15, sum(col_widths), 15, fill=True, stroke=False)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(45, cur_y - 11, f"TOTAL VARIETIES CATALOGED: {len(varieties_data)}")
+    tot_all_stock = sum(int(v.get('current_stock_bags', 0) or 0) for v in varieties_data)
+    c.drawRightString(35 + sum(col_widths) - 8, cur_y - 11, f"TOTAL STOCK ON HAND: {tot_all_stock:,} Bags")
+    c.restoreState()
+
+    c.showPage()
+    c.save()
+    pdf_out = buffer.getvalue()
+    buffer.close()
+    return pdf_out
+

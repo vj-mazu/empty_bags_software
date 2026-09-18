@@ -224,6 +224,10 @@ export const downloadPdf = (type, id) => {
   window.open(`${API}/${type}/${id}/pdf/`, '_blank');
 };
 
+export const downloadVarietyMasterPdf = () => {
+  window.open(`${API}/varieties/export-pdf/`, '_blank');
+};
+
 export const downloadStocksPdf = (params = {}) => {
   const q = new URLSearchParams();
   if (params.date) q.set('date', params.date);

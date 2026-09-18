@@ -3,7 +3,8 @@ import {
   getUsers, createUser, updateUser, deleteUser,
   getPlaces, createPlace, updatePlace, deletePlace,
   getParties, createParty, updateParty, deleteParty,
-  getVarieties, createVariety, updateVariety, deleteVariety
+  getVarieties, createVariety, updateVariety, deleteVariety,
+  downloadVarietyMasterPdf
 } from '../api';
 import CustomConfirmModal from './CustomConfirmModal';
 
@@ -507,9 +508,19 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
             <div className="card-title">
               <i className="fas fa-wheat-awn" style={{ color: '#10b981' }}></i> Variety Master ({filteredVarieties.length})
             </div>
-            <button className="btn btn-green" onClick={() => setShowVarietyModal(true)}>
-              <i className="fas fa-plus"></i> Add New Variety
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button 
+                className="btn btn-ghost" 
+                onClick={downloadVarietyMasterPdf}
+                title="Download Variety Master Catalog PDF with Images & Data"
+                style={{ border: '1px solid #cbd5e1', color: '#0f172a' }}
+              >
+                <i className="fas fa-file-pdf" style={{ color: '#dc2626' }}></i> Download PDF
+              </button>
+              <button className="btn btn-green" onClick={() => setShowVarietyModal(true)}>
+                <i className="fas fa-plus"></i> Add New Variety
+              </button>
+            </div>
           </div>
           <div className="tbl-wrap">
             <table>
