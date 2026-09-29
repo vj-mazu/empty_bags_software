@@ -50,7 +50,8 @@ export function invalidateCache(prefix) {
 
 // ─── Core API helper ────────────────────────────────────────────────────────
 export async function api(path, opts = {}) {
-  const url = path.startsWith('http') ? path : `${API}${path.startsWith('/') ? path : '/' + path}`;
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  const url = `${API}${cleanPath}`;
   
   const method = (opts.method || 'GET').toUpperCase();
   const headers = { ...opts.headers };
@@ -74,8 +75,14 @@ export async function api(path, opts = {}) {
   // ─── 401/403 DETECTOR: session expired → auto-logout ─────────────────────
   if (res.status === 401 || res.status === 403) {
     // Skip if this is the login endpoint itself (expected 401)
-    if (!path.includes('/auth/login/') && _onSessionExpired) {
-      _onSessionExpired();
+    if (!path.includes('/auth/login/')) {
+      try {
+        localStorage.removeItem('mother_india_user');
+        sessionStorage.clear();
+      } catch (e) {}
+      if (_onSessionExpired) {
+        _onSessionExpired();
+      }
     }
   }
 
@@ -137,53 +144,48 @@ export const updateUser = (id, d) => { invalidateCache('users'); return api(`/us
 export const deleteUser = (id) => { invalidateCache('users'); return api(`/users/${id}/`, { method: 'DELETE' }); };
 
 export const getPlaces = () => cachedFetch('places', () => api('/places/'), 300000);
-export const createPlace = (d) => { invalidateCache('places'); return api('/places/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const updatePlace = (id, d) => { invalidateCache('places'); return api(`/places/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const deletePlace = (id) => { invalidateCache('places'); return api(`/places/${id}/`, { method: 'DELETE' }); };
+export const createPlace = (d) => { invalidateCache('places'); invalidateCache('place-ledger'); invalidateCache('stocks-today'); return api('/places/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updatePlace = (id, d) => { invalidateCache('places'); invalidateCache('place-ledger'); invalidateCache('stocks-today'); return api(`/places/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deletePlace = (id) => { invalidateCache('places'); invalidateCache('place-ledger'); invalidateCache('stocks-today'); return api(`/places/${id}/`, { method: 'DELETE' }); };
 
 export const getParties = () => cachedFetch('parties', () => api('/parties/'), 300000);
-export const createParty = (d) => { invalidateCache('parties'); return api('/parties/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const updateParty = (id, d) => { invalidateCache('parties'); return api(`/parties/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const deleteParty = (id) => { invalidateCache('parties'); return api(`/parties/${id}/`, { method: 'DELETE' }); };
+export const createParty = (d) => { invalidateCache('parties'); invalidateCache('stocks-today'); return api('/parties/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateParty = (id, d) => { invalidateCache('parties'); invalidateCache('stocks-today'); return api(`/parties/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteParty = (id) => { invalidateCache('parties'); invalidateCache('stocks-today'); return api(`/parties/${id}/`, { method: 'DELETE' }); };
 
 export const getVarieties = () => cachedFetch('varieties', () => api('/varieties/'), 120000);  // 2 min cache
-export const createVariety = (formData) => { invalidateCache('varieties'); return api('/varieties/', { method: 'POST', body: formData }); };
-export const updateVariety = (id, formData) => { invalidateCache('varieties'); return api(`/varieties/${id}/`, { method: 'PATCH', body: formData }); };
-export const deleteVariety = (id) => { invalidateCache('varieties'); return api(`/varieties/${id}/`, { method: 'DELETE' }); };
+export const createVariety = (formData) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); return api('/varieties/', { method: 'POST', body: formData }); };
+export const updateVariety = (id, formData) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); return api(`/varieties/${id}/`, { method: 'PATCH', body: formData }); };
+export const deleteVariety = (id, force = false) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); invalidateCache('place-ledger'); return api(`/varieties/${id}/${force ? '?force=true' : ''}`, { method: 'DELETE' }); };
 
 // ═══ Inward / Outward ═══════════════════════════════════════════════════════
 
-export const getInwards = (params) => {
-  if (typeof params === 'string') return api(params);
-  const q = new URLSearchParams();
-  if (params?.all) q.set('all', params.all);
-  if (params?.date) q.set('date', params.date);
-  return api(`/inward/?${q.toString()}`);
-};
-export const createInward = (d) => { invalidateCache('inward'); invalidateCache('dashboard'); return api('/inward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const updateInward = (id, d) => { invalidateCache('inward'); invalidateCache('dashboard'); return api(`/inward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const deleteInward = (id) => { invalidateCache('inward'); invalidateCache('dashboard'); return api(`/inward/${id}/`, { method: 'DELETE' }); };
+export const createInward = (d) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); return api('/inward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateInward = (id, d) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); return api(`/inward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteInward = (id) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); return api(`/inward/${id}/`, { method: 'DELETE' }); };
 
-export const getOutwards = (params) => {
-  if (typeof params === 'string') return api(params);
-  const q = new URLSearchParams();
-  if (params?.all) q.set('all', params.all);
-  if (params?.date) q.set('date', params.date);
-  return api(`/outward/?${q.toString()}`);
-};
-export const createOutward = (d) => { invalidateCache('outward'); invalidateCache('dashboard'); return api('/outward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const updateOutward = (id, d) => { invalidateCache('outward'); invalidateCache('dashboard'); return api(`/outward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const deleteOutward = (id) => { invalidateCache('outward'); invalidateCache('dashboard'); return api(`/outward/${id}/`, { method: 'DELETE' }); };
+export const createOutward = (d) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); return api('/outward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateOutward = (id, d) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); return api(`/outward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteOutward = (id) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); return api(`/outward/${id}/`, { method: 'DELETE' }); };
 
-// ═══ New: Dashboard API (pre-aggregated, 30-sec cache) ═══════════════════════
+// ═══ Dashboard API (pre-aggregated, 30-sec cache) ═══════════════════════════
 
 export const getDashboard = () => cachedFetch('dashboard-stats', () => api('/dashboard/'), 30000);
 
-// ═══ New: Stocks Today API (all data in 1 call, replaces ?all=true) ════════
-
-export const getStocksToday = (date) => {
-  const q = date ? `?date=${date}` : '';
-  return cachedFetch(`stocks-today-${date || 'default'}`, () => api(`/stocks-today/${q}`), 15000);  // 15-sec cache
+export const getStocksToday = (params = {}) => {
+  let query = '';
+  if (typeof params === 'string') {
+    query = params ? `?date=${params}` : '';
+  } else if (params && typeof params === 'object') {
+    const q = new URLSearchParams();
+    if (params.date) q.append('date', params.date);
+    if (params.all) q.append('all', 'true');
+    if (params.variety_id) q.append('variety_id', params.variety_id);
+    const qs = q.toString();
+    if (qs) query = `?${qs}`;
+  }
+  const cacheKey = `stocks-today-${query || 'default'}`;
+  return cachedFetch(cacheKey, () => api(`/stocks-today/${query}`), 10000);
 };
 
 // ═══ Alerts ═════════════════════════════════════════════════════════════════
@@ -250,5 +252,5 @@ export const downloadLedgerPdf = (params = {}) => {
 
 export const getApprovals = () => api('/approvals/');
 export const createApprovalRequest = (d) => { invalidateCache('approvals'); return api('/approvals/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const approveRequest = (id) => { invalidateCache('approvals'); return api(`/approvals/${id}/approve/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }); };
+export const approveRequest = (id) => { invalidateCache('approvals'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('varieties'); invalidateCache('place-ledger'); return api(`/approvals/${id}/approve/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }); };
 export const rejectRequest = (id) => { invalidateCache('approvals'); return api(`/approvals/${id}/reject/`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }); };

@@ -70,6 +70,9 @@ const Stocks = ({ user, showToast }) => {
   const [closingStock, setClosingStock] = useState(0);
   const [filterDate, setFilterDate] = useState('');
 
+  const [showAllDates, setShowAllDates] = useState(false);
+  const [selectedVarietyId, setSelectedVarietyId] = useState('');
+
   const [editingInward, setEditingInward] = useState(null);
   const [editingOutward, setEditingOutward] = useState(null);
   const [pendingMap, setPendingMap] = useState({});
@@ -123,7 +126,7 @@ const Stocks = ({ user, showToast }) => {
 
   useEffect(() => {
     fetchData();
-  }, [filterDate]);
+  }, [filterDate, showAllDates, selectedVarietyId]);
 
   const requestSeqRef = React.useRef(0);
 
@@ -150,7 +153,13 @@ const Stocks = ({ user, showToast }) => {
       const activeDate = filterDate || todayStr;
       setBusinessDate(activeDate);
 
-      const data = await getStocksToday(filterDate || undefined);
+      const params = {
+        all: showAllDates,
+        variety_id: selectedVarietyId || undefined,
+        date: showAllDates ? undefined : activeDate
+      };
+
+      const data = await getStocksToday(params);
       
       if (currentSeq === requestSeqRef.current) {
         setVarieties(data.varieties || []);
@@ -191,14 +200,14 @@ const Stocks = ({ user, showToast }) => {
     <div style={{ width: '100%', maxWidth: '100%' }}>
       
       {/* HEADER SECTION */}
-      <div className="card-hdr" style={{ marginBottom: '1.25rem' }}>
+      <div className="card-hdr" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <h2 className="card-title" style={{ fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <i className="fas fa-boxes-stacked" style={{ color: '#2563eb' }}></i> Daily Stock Registers
           </h2>
           <span style={{ fontSize: '0.84rem', color: '#1e40af', background: '#eff6ff', padding: '0.25rem 0.65rem', borderRadius: '6px', fontWeight: 700, border: '1px solid #bfdbfe' }}>
             <i className="fas fa-calendar-day" style={{ marginRight: '5px' }}></i>
-            Date: {businessDate ? formatDate(businessDate) : '-'}
+            {showAllDates ? 'All History / All Dates' : `Date: ${businessDate ? formatDate(businessDate) : '-'}`}
           </span>
         </div>
         
@@ -234,16 +243,45 @@ const Stocks = ({ user, showToast }) => {
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginRight: '0.25rem' }}>
-            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Date:</label>
-            <input 
-              type="date" 
-              className="input" 
-              value={filterDate || businessDate} 
-              onChange={(e) => setFilterDate(e.target.value)}
-              style={{ padding: '0.4rem 0.6rem', fontSize: '0.82rem', width: '135px' }}
-            />
+          {/* Quick Filters */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: '#f8fafc', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+            <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showAllDates} 
+                onChange={(e) => setShowAllDates(e.target.checked)} 
+              />
+              All Dates
+            </label>
           </div>
+
+          {!showAllDates && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginRight: '0.25rem' }}>
+              <label style={{ fontSize: '0.76rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Date:</label>
+              <input 
+                type="date" 
+                className="input" 
+                value={filterDate || businessDate} 
+                onChange={(e) => setFilterDate(e.target.value)}
+                style={{ padding: '0.4rem 0.6rem', fontSize: '0.82rem', width: '135px' }}
+              />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <select 
+              className="input" 
+              value={selectedVarietyId} 
+              onChange={(e) => setSelectedVarietyId(e.target.value)}
+              style={{ padding: '0.4rem 0.6rem', fontSize: '0.82rem', maxWidth: '170px' }}
+            >
+              <option value="">All Varieties</option>
+              {varieties.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+
           <button className="btn btn-green" onClick={() => setShowInwardModal(true)}>
             <i className="fas fa-plus-circle"></i> + Inward
           </button>

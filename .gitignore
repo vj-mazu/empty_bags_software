@@ -37,3 +37,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# repo_reveal cache
+.repo_reveal_cache/

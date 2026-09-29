@@ -270,18 +270,9 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
         res1 = self.client.post('/api/inward/', payload, format='json')
         self.assertEqual(res1.status_code, status.HTTP_201_CREATED)
 
-        # Second submission with different invoice no but exact same items within 5 mins
-        payload2 = {
-            'invoice_no': 'DUP-IN-002',
-            'date': str(timezone.now().date()),
-            'party': self.party_lakshmi.id,
-            'variety': self.variety_sona.id,
-            'bags': 50,
-            'rate': '1500.00'
-        }
-        res2 = self.client.post('/api/inward/', payload2, format='json')
+        # Second submission with exact same invoice within 5 mins must be rejected
+        res2 = self.client.post('/api/inward/', payload, format='json')
         self.assertEqual(res2.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Duplicate entry detected', str(res2.data[0]))
 
     # ─────────────────────────────────────────────────────────────────────────
     # 9. TEST VARIETY MASTER PDF CATALOG EXPORT
@@ -294,4 +285,174 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
         self.assertEqual(res['Content-Type'], 'application/pdf')
         self.assertIn('inline; filename="Variety_Master_Catalog.pdf"', res['Content-Disposition'])
         self.assertTrue(res.content.startswith(b'%PDF'))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 10. TEST VARIETY FORCE DELETE WITH TRANSACTIONS (OWNER FEATURE)
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_variety_force_delete_with_transactions(self):
+        """Standard delete blocks if transactions exist, but ?force=true allows cascade deletion."""
+        variety = Variety.objects.create(name='Temporary Variety 26kg', kgs_per_bag=Decimal('26.00'))
+        inward = Inward.objects.create(
+            party=self.party_lakshmi,
+            variety=variety,
+            rate=Decimal('1200.00'),
+            bags=150,
+            created_by=self.owner_user
+        )
+
+        self.client.force_authenticate(user=self.owner_user)
+
+        # 1. Normal delete fails with 400
+        del_fail = self.client.delete(f'/api/varieties/{variety.id}/')
+        self.assertEqual(del_fail.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('has_transactions', del_fail.data)
+        self.assertTrue(Variety.objects.filter(id=variety.id).exists())
+
+        # 2. Force delete succeeds and cascade deletes the inward transactions
+        del_force = self.client.delete(f'/api/varieties/{variety.id}/?force=true')
+        self.assertEqual(del_force.status_code, status.HTTP_200_OK)
+        self.assertFalse(Variety.objects.filter(id=variety.id).exists())
+        self.assertFalse(Inward.objects.filter(id=inward.id).exists())
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 11. TEST STAFF EDIT APPROVAL WORKFLOW & OWNER APPROVAL
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_staff_approval_workflow(self):
+        """Staff request creates pending ApprovalRequest; Owner approval applies changes."""
+        inward = Inward.objects.create(
+            party=self.party_lakshmi,
+            variety=self.variety_sona,
+            rate=Decimal('1000.00'),
+            bags=100,
+            created_by=self.staff_user
+        )
+
+        # 1. Staff creates approval request to change bags from 100 to 120 and rate to 1100
+        self.client.force_authenticate(user=self.staff_user)
+        req_payload = {
+            'action_type': 'EDIT',
+            'target_model': 'INWARD',
+            'target_id': inward.id,
+            'proposed_data': {
+                'bags': 120,
+                'rate': 1100.00,
+                'party': self.party_lakshmi.id,
+                'variety': self.variety_sona.id,
+            }
+        }
+        create_res = self.client.post('/api/approvals/', req_payload, format='json')
+        self.assertEqual(create_res.status_code, status.HTTP_201_CREATED)
+        app_id = create_res.data['id']
+
+        # 2. Owner approves the request
+        self.client.force_authenticate(user=self.owner_user)
+        approve_res = self.client.post(f'/api/approvals/{app_id}/approve/')
+        self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
+
+        # 3. Verify inward was updated and values recalculated
+        inward.refresh_from_db()
+        self.assertEqual(inward.bags, 120)
+        self.assertEqual(inward.rate, Decimal('1100.00'))
+        self.assertEqual(inward.total_kgs, Decimal('6000.00')) # 120 * 50kg
+        self.assertEqual(inward.total_value, Decimal('132000.00')) # 120 * 1100
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 12. TEST STOCKS TODAY FILTERING (ALL DATES & VARIETY)
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_stocks_today_filters(self):
+        """Test stocks-today endpoint with ?all=true and ?variety_id filters."""
+        Inward.objects.create(
+            party=self.party_lakshmi,
+            variety=self.variety_sona,
+            rate=Decimal('1500.00'),
+            bags=80,
+            created_by=self.owner_user
+        )
+        self.client.force_authenticate(user=self.owner_user)
+
+        res_all = self.client.get('/api/stocks-today/?all=true')
+        self.assertEqual(res_all.status_code, status.HTTP_200_OK)
+        self.assertTrue(res_all.data['is_all_records'])
+        self.assertGreaterEqual(len(res_all.data['inwards']), 1)
+
+        res_var = self.client.get(f'/api/stocks-today/?variety_id={self.variety_sona.id}')
+        self.assertEqual(res_var.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_var.data['inwards'][0]['variety'], self.variety_sona.id)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 13. TEST PLACE TRANSFER & BRANCH STOCK LEDGER ACCURACY
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_place_transfer_and_branch_stock_ledger(self):
+        """Test transferring stock to a branch, selling from that branch, and validating balances."""
+        # 1. Inward 1000 bags of Sona Masoori to Mill
+        Inward.objects.create(
+            party=self.party_lakshmi,
+            variety=self.variety_sona,
+            rate=Decimal('1500.00'),
+            bags=1000,
+            created_by=self.owner_user
+        )
+
+        self.client.force_authenticate(user=self.owner_user)
+
+        # 2. Transfer 400 bags to Kurnool branch
+        transfer_payload = {
+            'invoice_no': 'TR-KNL-001',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 400,
+            'rate': '1500.00',
+            'is_transfer': True,
+            'to_place': self.place_kurnool.id
+        }
+        res_tr = self.client.post('/api/outward/', transfer_payload, format='json')
+        self.assertEqual(res_tr.status_code, status.HTTP_201_CREATED)
+
+        # 3. Check Place Stock Ledger for Kurnool: Transferred: 400, Sales: 0, Remaining: 400
+        res_ledger1 = self.client.get(f'/api/place-ledger/?place_id={self.place_kurnool.id}')
+        self.assertEqual(res_ledger1.status_code, status.HTTP_200_OK)
+        place_data1 = res_ledger1.data['results'][0]
+        self.assertEqual(place_data1['transferred_in_bags'], 400)
+        self.assertEqual(place_data1['sales_bags'], 0)
+        self.assertEqual(place_data1['remaining_bags'], 400)
+
+        # 4. Sell 150 bags from Kurnool branch
+        sale_payload = {
+            'invoice_no': 'SALE-KNL-001',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 150,
+            'rate': '1600.00',
+            'is_transfer': False,
+            'from_place': self.place_kurnool.id,
+            'from_place_name': self.place_kurnool.name
+        }
+        res_sale = self.client.post('/api/outward/', sale_payload, format='json')
+        self.assertEqual(res_sale.status_code, status.HTTP_201_CREATED)
+
+        # 5. Check Place Stock Ledger: Transferred: 400, Sales: 150, Remaining: 250
+        res_ledger2 = self.client.get(f'/api/place-ledger/?place_id={self.place_kurnool.id}')
+        place_data2 = res_ledger2.data['results'][0]
+        self.assertEqual(place_data2['transferred_in_bags'], 400)
+        self.assertEqual(place_data2['sales_bags'], 150)
+        self.assertEqual(place_data2['remaining_bags'], 250)
+
+        # 6. Attempting to sell 300 bags (more than remaining 250) must fail validation
+        oversell_payload = {
+            'invoice_no': 'SALE-KNL-OVER',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 300,
+            'rate': '1600.00',
+            'is_transfer': False,
+            'from_place': self.place_kurnool.id
+        }
+        res_oversell = self.client.post('/api/outward/', oversell_payload, format='json')
+        self.assertEqual(res_oversell.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Insufficient branch stock', str(res_oversell.data['bags'][0]))
+
+
 

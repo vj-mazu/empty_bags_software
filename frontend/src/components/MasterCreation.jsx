@@ -333,22 +333,29 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
     setShowVarietyModal(true);
   };
 
-  const handleDeleteVariety = (id) => {
+  const handleDeleteVariety = (v) => {
     if (user?.role !== 'OWNER') {
       if (showToast) showToast('Only OWNER can delete varieties!', 'error');
       return;
     }
+
+    const hasStockOrRecords = !v.can_delete;
+    const stockCount = Number(v.current_stock_bags || 0).toLocaleString();
+
     setConfirmState({
       isOpen: true,
-      title: 'Delete Variety?',
-      message: 'Are you sure you want to delete this variety?',
-      confirmText: 'Delete Variety',
+      title: hasStockOrRecords ? 'Force Delete Variety & Clear Stock?' : 'Delete Variety?',
+      message: hasStockOrRecords 
+        ? `⚠️ Variety "${v.name}" currently has ${stockCount} Bags in active transactions. Deleting it will permanently remove the variety and ALL associated inward & outward stock records. Are you sure you want to proceed?`
+        : `Are you sure you want to delete variety "${v.name}"?`,
+      confirmText: hasStockOrRecords ? 'Force Delete & Clear Stock' : 'Delete Variety',
       confirmColor: '#dc2626',
+      icon: hasStockOrRecords ? 'fa-triangle-exclamation' : 'fa-trash',
       onConfirm: async () => {
         setConfirmState(prev => ({ ...prev, isOpen: false }));
         try {
-          await deleteVariety(id);
-          if (showToast) showToast('Variety deleted successfully!');
+          await deleteVariety(v.id, hasStockOrRecords);
+          if (showToast) showToast(hasStockOrRecords ? `Variety "${v.name}" and all associated stock records deleted!` : 'Variety deleted successfully!');
           loadVarieties();
         } catch (err) {
           if (showToast) showToast(err.message || 'Cannot delete variety linked to stock transactions!', 'error');
@@ -575,14 +582,21 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                         <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditVarietyClick(v)}>
                           <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
                         </button>
-                        {v.can_delete && user?.role === 'OWNER' ? (
-                          <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteVariety(v.id)}>
-                            <i className="fas fa-trash" style={{ color: '#ef4444' }}></i>
+                        {user?.role === 'OWNER' ? (
+                          <button 
+                            className="btn btn-ghost btn-sm" 
+                            title={v.can_delete ? "Delete Variety" : "Force Delete Variety & Stock"} 
+                            onClick={() => handleDeleteVariety(v)}
+                            style={{ color: '#ef4444' }}
+                          >
+                            <i className="fas fa-trash"></i>
                           </button>
                         ) : (
-                          <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
-                            <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
-                          </span>
+                          v.can_delete ? null : (
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                              <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                            </span>
+                          )
                         )}
                       </div>
                     </td>

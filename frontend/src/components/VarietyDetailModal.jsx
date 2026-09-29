@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getVarietyLedger, downloadPdf } from '../api';
+import { getVarietyLedger, downloadPdf, deleteInward, deleteOutward } from '../api';
 import { formatDate, formatINR, formatBags } from '../utils/formatters';
+import CustomConfirmModal from './CustomConfirmModal';
 
-export default function VarietyDetailModal({ varietyId, onClose, initialFilters = {} }) {
+export default function VarietyDetailModal({ varietyId, onClose, initialFilters = {}, user, showToast }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -11,6 +12,19 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
   const [month, setMonth] = useState(initialFilters.month || '');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    confirmColor: '',
+    onConfirm: () => {}
+  });
+
+  const isOwner = user?.role === 'OWNER' || (() => {
+    try { return JSON.parse(localStorage.getItem('mother_india_user') || '{}')?.role === 'OWNER'; } catch(e) { return false; }
+  })();
 
   useEffect(() => {
     fetchDetail();
@@ -34,29 +48,36 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
     setLoading(false);
   };
 
-  const handleApplyFilter = () => {
-    fetchDetail();
-  };
+  const handleDeleteTransaction = (t) => {
+    if (!isOwner) return;
 
-  const handleClearFilter = () => {
-    setStartDate('');
-    setEndDate('');
-    setMonth('');
-    setInvoiceNo('');
-    setTypeFilter('all');
-    setLoading(true);
-    getVarietyLedger(varietyId, {}).then(res => {
-      setData(res);
-      setLoading(false);
-    }).catch(err => {
-      console.error(err);
-      setLoading(false);
+    setConfirmState({
+      isOpen: true,
+      title: `Delete ${t.type.toUpperCase()} Entry?`,
+      message: `Are you sure you want to permanently delete this ${t.type} entry (${t.invoice_no || `ID ${t.id}`}) of ${t.bags} bags? This will adjust the variety stock balance.`,
+      confirmText: 'Delete Entry',
+      confirmColor: '#dc2626',
+      onConfirm: async () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        try {
+          if (t.type === 'inward') {
+            await deleteInward(t.id);
+          } else {
+            await deleteOutward(t.id);
+          }
+          if (showToast) showToast(`${t.type.toUpperCase()} transaction deleted successfully!`);
+          fetchDetail();
+        } catch (err) {
+          if (showToast) showToast(err.message || 'Error deleting transaction', 'error');
+          else alert(err.message || 'Error deleting transaction');
+        }
+      }
     });
   };
 
   return (
     <div className="modal-overlay" style={{ zIndex: 1000 }}>
-      <div className="modal" style={{ maxWidth: '1040px', width: '95%' }}>
+      <div className="modal" style={{ maxWidth: '1080px', width: '95%' }}>
         <div className="modal-hdr">
           <div className="modal-title" style={{ color: '#2563eb', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <i className="fas fa-wheat-awn"></i> Itemized Transaction Ledger: {data?.variety?.name || 'Loading...'}
@@ -135,46 +156,80 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
                 <th style={{ textAlign: 'right' }}>Rate</th>
                 <th style={{ textAlign: 'right' }}>P/B Cost</th>
                 <th style={{ textAlign: 'right' }}>Total Value</th>
+                {isOwner && <th style={{ textAlign: 'center', width: '50px' }}>Action</th>}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="9" style={{ textAlign: 'center', padding: '1.5rem' }}>Loading transaction ledger...</td></tr>
+                <tr><td colSpan={isOwner ? "10" : "9"} style={{ textAlign: 'center', padding: '1.5rem' }}>Loading transaction ledger...</td></tr>
               ) : (
-                (data?.transactions || [])
-                  .filter(t => typeFilter === 'all' || t.type === typeFilter)
-                  .map((t, idx) => (
-                    <tr key={`${t.type}-${t.id}-${idx}`}>
-                      <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                <>
+                  {data?.opening_balance !== undefined && (startDate || month) && (
+                    <tr style={{ background: '#f8fafc', fontStyle: 'italic' }}>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>-</td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`role-pill ${t.type === 'inward' ? 'role-staff' : 'role-owner'}`}>
-                          {t.type.toUpperCase()}
+                        <span className="role-pill" style={{ background: '#e0e7ff', color: '#3730a3' }}>
+                          OPENING
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700, color: '#2563eb' }}>
-                        {t.invoice_no ? (
-                          <span 
-                            onClick={() => downloadPdf(t.type, t.id)}
-                            style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                            title="Click to view full-screen invoice slip"
-                          >
-                            {t.invoice_no}
-                          </span>
-                        ) : '-'}
+                      <td colSpan="3" style={{ fontWeight: 700, color: '#475569' }}>
+                        Opening Stock Balance (Prior to {formatDate(startDate || (month ? `${month}-01` : ''))})
                       </td>
-                      <td style={{ color: '#475569', fontWeight: 600 }}>{formatDate(t.date)}</td>
-                      <td style={{ fontWeight: 600, color: '#0f172a' }}>{t.party_name}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, color: t.type === 'inward' ? '#059669' : '#dc2626' }}>
-                        {t.type === 'inward' ? `+${formatBags(t.bags)}` : `-${formatBags(t.bags)}`}
+                      <td style={{ textAlign: 'center', fontWeight: 800, color: '#2563eb' }}>
+                        {formatBags(data.opening_balance)}
                       </td>
-                      <td style={{ textAlign: 'right' }}>₹{t.rate}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb' }}>₹{(t.per_bag_cost || t.rate).toFixed(2)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{formatINR(t.total_value)}</td>
+                      <td colSpan={isOwner ? "4" : "3"} style={{ textAlign: 'right', color: '#64748b' }}>
+                        Carry Forward
+                      </td>
                     </tr>
-                  ))
+                  )}
+                  {(data?.transactions || [])
+                    .filter(t => typeFilter === 'all' || t.type === typeFilter)
+                    .map((t, idx) => (
+                      <tr key={`${t.type}-${t.id}-${idx}`}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`role-pill ${t.type === 'inward' ? 'role-staff' : 'role-owner'}`}>
+                            {t.type.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 700, color: '#2563eb' }}>
+                          {t.invoice_no ? (
+                            <span 
+                              onClick={() => downloadPdf(t.type, t.id)}
+                              style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                              title="Click to view full-screen invoice slip"
+                            >
+                              {t.invoice_no}
+                            </span>
+                          ) : '-'}
+                        </td>
+                        <td style={{ color: '#475569', fontWeight: 600 }}>{formatDate(t.date)}</td>
+                        <td style={{ fontWeight: 600, color: '#0f172a' }}>{t.party_name}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: t.type === 'inward' ? '#059669' : '#dc2626' }}>
+                          {t.type === 'inward' ? `+${formatBags(t.bags)}` : `-${formatBags(t.bags)}`}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{formatINR(t.rate)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: '#2563eb' }}>{formatINR(t.per_bag_cost || t.rate)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>{formatINR(t.total_value)}</td>
+                        {isOwner && (
+                          <td style={{ textAlign: 'center' }}>
+                            <button 
+                              className="btn btn-ghost btn-sm" 
+                              title="Delete Transaction" 
+                              onClick={() => handleDeleteTransaction(t)}
+                              style={{ color: '#ef4444', padding: '2px 6px' }}
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                </>
               )}
               {!loading && (!data?.transactions || data.transactions.filter(t => typeFilter === 'all' || t.type === typeFilter).length === 0) && (
-                <tr><td colSpan="9" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No itemized transactions found matching filter.</td></tr>
+                <tr><td colSpan={isOwner ? "10" : "9"} style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No itemized transactions found matching filter.</td></tr>
               )}
             </tbody>
           </table>
@@ -183,6 +238,16 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
         <div style={{ marginTop: '1.25rem', textAlign: 'right' }}>
           <button className="btn btn-ghost" onClick={onClose}>Close</button>
         </div>
+
+        <CustomConfirmModal 
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmText={confirmState.confirmText}
+          confirmColor={confirmState.confirmColor}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+        />
       </div>
     </div>
   );

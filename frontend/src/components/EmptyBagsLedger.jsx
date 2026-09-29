@@ -108,7 +108,7 @@ const LedgerStockCard = ({ row, type, index, onSelectVariety, onPreviewPhoto, ge
   );
 };
 
-const EmptyBagsLedger = () => {
+const EmptyBagsLedger = ({ user, showToast }) => {
   const [varieties, setVarieties] = useState([]);
   const [inwardRows, setInwardRows] = useState([]);
   const [outwardRows, setOutwardRows] = useState([]);
@@ -491,8 +491,13 @@ const EmptyBagsLedger = () => {
       {selectedVarietyId && (
         <VarietyDetailModal 
           varietyId={selectedVarietyId} 
-          onClose={() => setSelectedVarietyId(null)}
+          onClose={() => {
+            setSelectedVarietyId(null);
+            fetchLedger();
+          }}
           initialFilters={{ start_date: startDate, end_date: endDate, month }}
+          user={user}
+          showToast={showToast}
         />
       )}
 

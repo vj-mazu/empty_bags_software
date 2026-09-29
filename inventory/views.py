@@ -27,15 +27,6 @@ def get_current_business_date():
     return now.date()
 
 
-class IndexView(TemplateView):
-    template_name = 'index.html'
-
-
-class FastCursorPagination(CursorPagination):
-    page_size = 50
-    ordering = '-id'
-
-
 # ─── Performance Helper: bulk-annotate varieties with stock counts ───────────
 def _annotate_varieties(qs):
     """Annotate a Variety queryset with inward/outward bag counts and related
@@ -77,6 +68,8 @@ from django.db import models  # needed for output_field
 
 class AuthCheckAPIView(APIView):
     """Returns current user info if session is valid, 401 if not."""
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         if request.user and request.user.is_authenticated:
             try:
@@ -93,6 +86,8 @@ class AuthCheckAPIView(APIView):
 
 
 class LoginAPIView(APIView):
+    http_method_names = ['post', 'options']
+
     def post(self, request):
         try:
             username = (request.data.get('username') or '').strip() if request.data else ''
@@ -124,11 +119,17 @@ class LoginAPIView(APIView):
 
 
 class LogoutAPIView(APIView):
+    http_method_names = ['post', 'options']
+    permission_classes = []
+
     def post(self, request):
-        if hasattr(request, 'session'):
-            request.session.flush()
-        logout(request)
-        response = Response({'message': 'Logged out successfully'})
+        try:
+            if hasattr(request, 'session'):
+                request.session.flush()
+            logout(request)
+        except Exception:
+            pass
+        response = Response({'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
         response.delete_cookie('sessionid')
         response.delete_cookie('csrftoken')
         return response
@@ -259,8 +260,28 @@ class VarietyViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         variety = self.get_object()
-        if (variety.inwards.count() + variety.outwards.count()) > 0:
-            return Response({'error': 'Cannot delete Variety linked to stock transactions!'}, status=status.HTTP_400_BAD_REQUEST)
+        force = request.query_params.get('force') == 'true' or (isinstance(request.data, dict) and request.data.get('force') is True)
+        
+        has_records = (variety.inwards.count() + variety.outwards.count()) > 0
+        if has_records and not force:
+            return Response({
+                'error': f"Cannot delete '{variety.name}' because it has active stock / transaction records ({variety.inwards.count()} inward, {variety.outwards.count()} outward). Use force delete to remove.",
+                'has_transactions': True,
+                'inward_count': variety.inwards.count(),
+                'outward_count': variety.outwards.count()
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if force:
+            inward_ids = list(variety.inwards.values_list('id', flat=True))
+            outward_ids = list(variety.outwards.values_list('id', flat=True))
+            ApprovalRequest.objects.filter(target_model='INWARD', target_id__in=inward_ids).delete()
+            ApprovalRequest.objects.filter(target_model='OUTWARD', target_id__in=outward_ids).delete()
+            variety.inwards.all().delete()
+            variety.outwards.all().delete()
+            variety_name = variety.name
+            variety.delete()
+            return Response({'message': f"Variety '{variety_name}' and all associated stock records deleted successfully."}, status=status.HTTP_200_OK)
+
         return super().destroy(request, *args, **kwargs)
 
 
@@ -292,6 +313,7 @@ class InwardViewSet(viewsets.ModelViewSet):
         bags = serializer.validated_data['bags']
         rate = serializer.validated_data['rate']
         date = serializer.validated_data['date']
+        invoice_no = serializer.validated_data.get('invoice_no', '').strip()
 
         five_mins_ago = timezone.now() - datetime.timedelta(minutes=5)
         duplicate = Inward.objects.filter(
@@ -300,11 +322,12 @@ class InwardViewSet(viewsets.ModelViewSet):
             bags=bags,
             rate=rate,
             date=date,
+            invoice_no=invoice_no,
             created_at__gte=five_mins_ago
         ).exists()
 
         if duplicate:
-            raise ValidationError("Duplicate entry detected! A similar entry was submitted within the last 5 minutes.")
+            raise ValidationError("Duplicate entry detected! This invoice/entry was already submitted within the last 5 minutes.")
 
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(created_by=user)
@@ -334,6 +357,7 @@ class OutwardViewSet(viewsets.ModelViewSet):
         bags = serializer.validated_data['bags']
         rate = serializer.validated_data['rate']
         date = serializer.validated_data['date']
+        invoice_no = serializer.validated_data.get('invoice_no', '').strip()
 
         five_mins_ago = timezone.now() - datetime.timedelta(minutes=5)
         duplicate = Outward.objects.filter(
@@ -342,11 +366,12 @@ class OutwardViewSet(viewsets.ModelViewSet):
             bags=bags,
             rate=rate,
             date=date,
+            invoice_no=invoice_no,
             created_at__gte=five_mins_ago
         ).exists()
 
         if duplicate:
-            raise ValidationError("Duplicate entry detected! A similar entry was submitted within the last 5 minutes.")
+            raise ValidationError("Duplicate entry detected! This invoice/entry was already submitted within the last 5 minutes.")
 
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(created_by=user)
@@ -359,6 +384,8 @@ class OutwardViewSet(viewsets.ModelViewSet):
 class DashboardAPIView(APIView):
     """Returns pre-aggregated dashboard stats in 3 queries.
     Logic matches the original frontend: opening = all prior, today = current day."""
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         try:
             b_date = get_current_business_date()
@@ -412,28 +439,50 @@ class DashboardAPIView(APIView):
 
 class StocksTodayAPIView(APIView):
     """Returns today's inwards + outwards + varieties + parties + opening/closing
-    all in one response. Logic identical to Stocks.jsx fetchData."""
+    all in one response. Supports optional all=true and variety_id filtering."""
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         try:
             b_date = get_current_business_date()
             filter_date = request.query_params.get('date', str(b_date))
+            all_param = request.query_params.get('all') == 'true'
+            variety_id = request.query_params.get('variety_id')
             
             # Annotated varieties (1 query with subqueries, not N+1)
             variety_qs = _annotate_varieties(Variety.objects.all())
             variety_data = VarietySerializer(variety_qs, many=True).data
             
-            # Today's transactions only
-            in_qs = Inward.objects.filter(date=filter_date).select_related('party', 'variety', 'created_by')
-            out_qs = Outward.objects.filter(date=filter_date).select_related('party', 'variety', 'created_by')
-            
-            # Opening stock (all prior days)
-            prior_in = Inward.objects.filter(date__lt=filter_date).aggregate(tot=Sum('bags'))['tot'] or 0
-            prior_out = Outward.objects.filter(date__lt=filter_date).aggregate(tot=Sum('bags'))['tot'] or 0
-            opening = prior_in - prior_out
-            
-            today_in_bags = in_qs.aggregate(tot=Sum('bags'))['tot'] or 0
-            today_out_bags = out_qs.aggregate(tot=Sum('bags'))['tot'] or 0
-            closing = opening + today_in_bags - today_out_bags
+            in_qs = Inward.objects.select_related('party', 'variety', 'created_by')
+            out_qs = Outward.objects.select_related('party', 'variety', 'created_by')
+
+            if variety_id:
+                in_qs = in_qs.filter(variety_id=variety_id)
+                out_qs = out_qs.filter(variety_id=variety_id)
+
+            if all_param:
+                in_records = in_qs.order_by('-date', '-id')[:500]
+                out_records = out_qs.order_by('-date', '-id')[:500]
+                opening = 0
+                closing = (in_qs.aggregate(tot=Sum('bags'))['tot'] or 0) - (out_qs.aggregate(tot=Sum('bags'))['tot'] or 0)
+            else:
+                in_records = in_qs.filter(date=filter_date).order_by('-id')
+                out_records = out_qs.filter(date=filter_date).order_by('-id')
+
+                # Opening stock (all prior days)
+                prior_in = Inward.objects.filter(date__lt=filter_date)
+                prior_out = Outward.objects.filter(date__lt=filter_date)
+                if variety_id:
+                    prior_in = prior_in.filter(variety_id=variety_id)
+                    prior_out = prior_out.filter(variety_id=variety_id)
+
+                prior_in_tot = prior_in.aggregate(tot=Sum('bags'))['tot'] or 0
+                prior_out_tot = prior_out.aggregate(tot=Sum('bags'))['tot'] or 0
+                opening = prior_in_tot - prior_out_tot
+                
+                today_in_bags = in_records.aggregate(tot=Sum('bags'))['tot'] or 0
+                today_out_bags = out_records.aggregate(tot=Sum('bags'))['tot'] or 0
+                closing = opening + today_in_bags - today_out_bags
             
             # Parties (small table, full load is fine)
             parties = list(Party.objects.all().values('id', 'name'))
@@ -449,10 +498,11 @@ class StocksTodayAPIView(APIView):
             return Response({
                 'date': filter_date,
                 'business_date': str(b_date),
+                'is_all_records': all_param,
                 'varieties': variety_data,
                 'parties': parties,
-                'inwards': InwardSerializer(in_qs, many=True).data,
-                'outwards': OutwardSerializer(out_qs, many=True).data,
+                'inwards': InwardSerializer(in_records, many=True).data,
+                'outwards': OutwardSerializer(out_records, many=True).data,
                 'opening': opening,
                 'closing': closing,
                 'pending': pending_map,
@@ -477,6 +527,8 @@ class StocksTodayAPIView(APIView):
 # ═════════════════════════════════════════════════════════════════════════════
 
 class SystemAlertsAPIView(APIView):
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         try:
             low_stock_alerts = []
@@ -555,6 +607,8 @@ class EmptyBagsStockLedgerAPIView(APIView):
         page        - 1-based page number (default 1)
         page_size   - items per page (default 50, max 200)
     """
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         variety_id = request.query_params.get('variety_id')
         start_date = request.query_params.get('start_date')
@@ -753,6 +807,8 @@ class EmptyBagsStockLedgerAPIView(APIView):
 # ═════════════════════════════════════════════════════════════════════════════
 
 class InwardInvoicePDFView(APIView):
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request, pk):
         try:
             inward = Inward.objects.select_related('party', 'variety').get(pk=pk)
@@ -768,6 +824,8 @@ class InwardInvoicePDFView(APIView):
 
 
 class OutwardInvoicePDFView(APIView):
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request, pk):
         try:
             outward = Outward.objects.select_related('party', 'variety').get(pk=pk)
@@ -784,6 +842,8 @@ class OutwardInvoicePDFView(APIView):
 
 class VarietyMasterPDFView(APIView):
     """Generates and downloads a complete Variety Master Catalog PDF with embedded bag images and data."""
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         qs = Variety.objects.all().order_by('name')
         annotated_qs = _annotate_varieties(qs)
@@ -798,6 +858,8 @@ class VarietyMasterPDFView(APIView):
 
 class VarietyDetailLedgerAPIView(APIView):
     """Returns detailed itemized transaction history for a specific variety."""
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request, variety_id):
         try:
             variety = Variety.objects.get(pk=variety_id)
@@ -829,6 +891,13 @@ class VarietyDetailLedgerAPIView(APIView):
         
         inwards = Inward.objects.filter(variety=variety).select_related('party').only(*minimal_fields)
         outwards = Outward.objects.filter(variety=variety).select_related('party').only(*minimal_fields)
+
+        # Calculate opening stock balance prior to parsed_start
+        opening_balance = 0
+        if parsed_start:
+            prior_in = Inward.objects.filter(variety=variety, date__lt=parsed_start).aggregate(tot=Sum('bags'))['tot'] or 0
+            prior_out = Outward.objects.filter(variety=variety, date__lt=parsed_start).aggregate(tot=Sum('bags'))['tot'] or 0
+            opening_balance = prior_in - prior_out
 
         if parsed_start:
             inwards = inwards.filter(date__gte=parsed_start)
@@ -877,7 +946,7 @@ class VarietyDetailLedgerAPIView(APIView):
 
         transactions.sort(key=lambda x: (x['date'], x['id']))
 
-        running_balance = 0
+        running_balance = opening_balance
         final_list = []
         for t in transactions:
             if t['type'] == 'inward':
@@ -894,12 +963,15 @@ class VarietyDetailLedgerAPIView(APIView):
                 'name': variety.name,
                 'kgs_per_bag': float(variety.kgs_per_bag)
             },
+            'opening_balance': opening_balance,
             'transactions': final_list,
             'truncated': len(transactions) >= PAGE_SIZE
         })
 
 
 class ExportStocksPDFView(APIView):
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         from .pdf import generate_stocks_summary_pdf
         date_param = request.query_params.get('date') or str(get_current_business_date())
@@ -913,6 +985,8 @@ class ExportStocksPDFView(APIView):
 
 
 class ExportLedgerPDFView(APIView):
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         from .pdf import generate_ledger_summary_pdf
         ledger_view = EmptyBagsStockLedgerAPIView()
@@ -992,11 +1066,10 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
                 elif action_type == 'EDIT':
                     inward = Inward.objects.get(pk=target_id)
                     for field, value in proposed_data.items():
-                        if field in ['party', 'variety']:
-                            if field == 'party':
-                                inward.party_id = value
-                            elif field == 'variety':
-                                inward.variety_id = value
+                        if field == 'party':
+                            inward.party = Party.objects.get(pk=value)
+                        elif field == 'variety':
+                            inward.variety = Variety.objects.get(pk=value)
                         else:
                             setattr(inward, field, value)
                     inward.save()
@@ -1006,11 +1079,14 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
                 elif action_type == 'EDIT':
                     outward = Outward.objects.get(pk=target_id)
                     for field, value in proposed_data.items():
-                        if field in ['party', 'variety']:
-                            if field == 'party':
-                                outward.party_id = value
-                            elif field == 'variety':
-                                outward.variety_id = value
+                        if field == 'party':
+                            outward.party = Party.objects.get(pk=value)
+                        elif field == 'variety':
+                            outward.variety = Variety.objects.get(pk=value)
+                        elif field == 'from_place':
+                            outward.from_place = Place.objects.get(pk=value) if value else None
+                        elif field == 'to_place':
+                            outward.to_place = Place.objects.get(pk=value) if value else None
                         else:
                             setattr(outward, field, value)
                     outward.save()
@@ -1036,6 +1112,8 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
 
 class PlaceStockLedgerAPIView(APIView):
     """Calculates per-place stock transfers received, sales/usage, and remaining balance."""
+    http_method_names = ['get', 'head', 'options']
+
     def get(self, request):
         from django.db.models import Q
         place_id = request.query_params.get('place_id')
@@ -1048,9 +1126,9 @@ class PlaceStockLedgerAPIView(APIView):
             transfers_qs = Outward.objects.filter(is_transfer=True, to_place=p).select_related('variety', 'party')
             transferred_bags = transfers_qs.aggregate(tot=Sum('bags'))['tot'] or 0
 
-            # Dispatches / Sales originating from this branch or from a customer registered at this place
+            # Dispatches / Sales originating specifically from this branch location
             sales_qs = Outward.objects.filter(
-                Q(from_place=p) | Q(from_place_name__iexact=p.name) | Q(party__place=p, is_transfer=False)
+                Q(from_place=p) | Q(from_place_name__iexact=p.name)
             ).distinct().select_related('variety', 'party')
             sales_bags = sales_qs.aggregate(tot=Sum('bags'))['tot'] or 0
 

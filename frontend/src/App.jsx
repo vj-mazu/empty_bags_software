@@ -98,16 +98,8 @@ export default function App() {
     showToast(`Welcome back, ${userData.username || 'User'}!`);
   };
 
-  const handleLogout = async () => {
-    if (loggingOut) return;
-    setLoggingOut(true);
-
-    try {
-      await apiLogout();
-    } catch (err) {
-      console.warn('Server logout API:', err.message);
-    }
-
+  const handleLogout = () => {
+    // 1. Immediately reset state and storage synchronously
     try {
       localStorage.removeItem('mother_india_user');
       sessionStorage.clear();
@@ -117,9 +109,13 @@ export default function App() {
 
     invalidateCache('');
     setUser(null);
-    setLoggingOut(false);
     setActiveTab('dashboard');
     showToast('Logged out successfully!');
+
+    // 2. Dispatch backend logout in background
+    apiLogout().catch(err => {
+      console.warn('Server logout background notice:', err.message);
+    });
   };
 
   const handleSelectMaster = (section) => {
@@ -161,8 +157,8 @@ export default function App() {
       <main className="main-content">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'stocks' && <Stocks user={user} showToast={showToast} />}
-        {activeTab === 'ledger' && <EmptyBagsLedger />}
-        {activeTab === 'place-ledger' && <PlaceStockLedger />}
+        {activeTab === 'ledger' && <EmptyBagsLedger user={user} showToast={showToast} />}
+        {activeTab === 'place-ledger' && <PlaceStockLedger user={user} showToast={showToast} />}
         {activeTab === 'masters' && <MasterCreation user={user} activeSection={masterSubSection} showToast={showToast} />}
         {activeTab === 'approvals' && <Approvals showToast={showToast} />}
       </main>
