@@ -1,4 +1,5 @@
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import CursorPagination
@@ -11,12 +12,12 @@ from django.utils import timezone
 from datetime import timedelta, datetime
 from decimal import Decimal
 
-from .models import UserProfile, Place, Party, Variety, Inward, Outward, DailyStockSummary, Role
+from .models import UserProfile, Place, Floor, Party, Variety, Inward, Outward, DailyStockSummary, Role
 from .serializers import (
-    UserProfileSerializer, PlaceSerializer, PartySerializer, VarietySerializer,
+    UserProfileSerializer, PlaceSerializer, FloorSerializer, PartySerializer, VarietySerializer,
     InwardSerializer, OutwardSerializer, DailyStockSummarySerializer
 )
-from .pdf import generate_4up_a4_invoice, generate_variety_master_pdf
+from .pdf import generate_4up_a4_invoice, generate_variety_master_pdf, generate_floor_stock_pdf
 
 
 def get_current_business_date():
@@ -231,6 +232,21 @@ class PlaceViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 
+class FloorViewSet(viewsets.ModelViewSet):
+    queryset = Floor.objects.all()
+    serializer_class = FloorSerializer
+    pagination_class = None
+
+    def destroy(self, request, *args, **kwargs):
+        floor = self.get_object()
+        active_cnt = floor.inwards.count() + floor.outwards.count()
+        if active_cnt > 0:
+            return Response({
+                'error': f"Cannot delete Floor '{floor.name}' because it is linked to {active_cnt} active transactions ({floor.inwards.count()} inward, {floor.outwards.count()} outward)!"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        return super().destroy(request, *args, **kwargs)
+
+
 class PartyViewSet(viewsets.ModelViewSet):
     queryset = Party.objects.all().select_related('place')
     serializer_class = PartySerializer
@@ -283,6 +299,35 @@ class VarietyViewSet(viewsets.ModelViewSet):
             return Response({'message': f"Variety '{variety_name}' and all associated stock records deleted successfully."}, status=status.HTTP_200_OK)
 
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='place-order')
+    def place_order(self, request, pk=None):
+        if request.user and request.user.is_authenticated:
+            try:
+                profile = UserProfile.objects.get(user=request.user)
+                if profile.role != Role.OWNER:
+                    return Response({'error': 'Only OWNER can place or update bag orders.'}, status=status.HTTP_403_FORBIDDEN)
+            except UserProfile.DoesNotExist:
+                pass
+
+        variety = self.get_object()
+        order_placed = request.data.get('order_placed', True)
+        order_date = request.data.get('order_date')
+        order_bags = request.data.get('order_bags')
+        order_notes = request.data.get('order_notes', '')
+
+        variety.order_placed = bool(order_placed)
+        if variety.order_placed:
+            variety.order_date = order_date or timezone.now().date()
+            variety.order_bags = int(order_bags) if order_bags else None
+            variety.order_notes = order_notes or ''
+        else:
+            variety.order_date = None
+            variety.order_bags = None
+            variety.order_notes = ''
+
+        variety.save()
+        return Response(_annotate_varieties(Variety.objects.filter(id=variety.id)).first() and VarietySerializer(_annotate_varieties(Variety.objects.filter(id=variety.id)).first()).data or VarietySerializer(variety).data, status=status.HTTP_200_OK)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1172,3 +1217,285 @@ class PlaceStockLedgerAPIView(APIView):
             })
 
         return Response({'results': results})
+
+
+def compute_floor_stock_matrix(variety_id=None):
+    """
+    Computes a two-level dictionary: matrix[floor_id][variety_id] = {'in_bags': X, 'out_bags': Y}
+    where floor_id can be an int or None (for unassigned/historical).
+    Correctly accounts for both single-floor records and multi-floor split allocations,
+    and ignores branch location dispatches (from_place__isnull=False).
+    """
+    in_qs = Inward.objects.all()
+    out_qs = Outward.objects.filter(from_place__isnull=True)
+    if variety_id:
+        in_qs = in_qs.filter(variety_id=variety_id)
+        out_qs = out_qs.filter(variety_id=variety_id)
+
+    matrix = {}
+
+    def add(f_id, v_id, in_b=0, out_b=0):
+        if f_id not in matrix:
+            matrix[f_id] = {}
+        if v_id not in matrix[f_id]:
+            matrix[f_id][v_id] = {'in_bags': 0, 'out_bags': 0}
+        matrix[f_id][v_id]['in_bags'] += in_b
+        matrix[f_id][v_id]['out_bags'] += out_b
+
+    for in_rec in in_qs.only('variety_id', 'bags', 'floor_id', 'floor_allocations'):
+        allocs = in_rec.floor_allocations
+        if allocs and isinstance(allocs, list) and len(allocs) > 0:
+            for item in allocs:
+                f_id = item.get('floor_id')
+                f_id = int(f_id) if f_id is not None and str(f_id).isdigit() else None
+                b = int(item.get('bags', 0) or 0)
+                add(f_id, in_rec.variety_id, in_b=b)
+        else:
+            add(in_rec.floor_id, in_rec.variety_id, in_b=in_rec.bags)
+
+    for out_rec in out_qs.only('variety_id', 'bags', 'floor_id', 'floor_allocations'):
+        allocs = out_rec.floor_allocations
+        if allocs and isinstance(allocs, list) and len(allocs) > 0:
+            for item in allocs:
+                f_id = item.get('floor_id')
+                f_id = int(f_id) if f_id is not None and str(f_id).isdigit() else None
+                b = int(item.get('bags', 0) or 0)
+                add(f_id, out_rec.variety_id, out_b=b)
+        else:
+            add(out_rec.floor_id, out_rec.variety_id, out_b=out_rec.bags)
+
+    return matrix
+
+
+class FloorStockAPIView(APIView):
+    """
+    Returns live floor-wise stock breakdown.
+    - With ?variety_id=X: returns floor stock for that specific variety (for Inward/Outward live indicator).
+    - Without ?variety_id: returns full floor stock inventory report across all floors & varieties.
+    """
+    def get(self, request):
+        variety_id = request.query_params.get('variety_id')
+        floors = Floor.objects.all().order_by('name')
+
+        if variety_id:
+            try:
+                variety = Variety.objects.get(id=variety_id)
+            except Variety.DoesNotExist:
+                return Response({'error': 'Variety not found'}, status=status.HTTP_404_NOT_FOUND)
+
+            matrix = compute_floor_stock_matrix(variety_id=variety.id)
+            breakdown = []
+            for f in floors:
+                entry = matrix.get(f.id, {}).get(variety.id, {'in_bags': 0, 'out_bags': 0})
+                in_b = entry['in_bags']
+                out_b = entry['out_bags']
+                st_b = in_b - out_b
+                breakdown.append({
+                    'floor_id': f.id,
+                    'floor_name': f.name,
+                    'inward_bags': in_b,
+                    'outward_bags': out_b,
+                    'bags': st_b,
+                    'kgs': float(Decimal(str(st_b)) * Decimal(str(variety.kgs_per_bag)))
+                })
+
+            # Check unassigned / historical entries
+            un_entry = matrix.get(None, {}).get(variety.id, {'in_bags': 0, 'out_bags': 0})
+            un_in = un_entry['in_bags']
+            un_out = un_entry['out_bags']
+            un_b = un_in - un_out
+            if un_in > 0 or un_out > 0 or un_b != 0:
+                breakdown.append({
+                    'floor_id': None,
+                    'floor_name': 'General / Unassigned',
+                    'inward_bags': un_in,
+                    'outward_bags': un_out,
+                    'bags': un_b,
+                    'kgs': float(Decimal(str(un_b)) * Decimal(str(variety.kgs_per_bag)))
+                })
+
+            total_bags = sum(item['bags'] for item in breakdown)
+            return Response({
+                'variety_id': variety.id,
+                'variety_name': variety.name,
+                'kgs_per_bag': float(variety.kgs_per_bag),
+                'total_bags': total_bags,
+                'floors': breakdown
+            })
+
+        # All floors with varieties
+        varieties = Variety.objects.all().order_by('name')
+        matrix = compute_floor_stock_matrix()
+
+        results = []
+        for f in floors:
+            floor_varieties = []
+            fl_tot_bags = 0
+            fl_tot_kgs = Decimal('0.00')
+
+            for v in varieties:
+                entry = matrix.get(f.id, {}).get(v.id, {'in_bags': 0, 'out_bags': 0})
+                in_b = entry['in_bags']
+                out_b = entry['out_bags']
+                st_b = in_b - out_b
+                if in_b > 0 or out_b > 0 or st_b != 0:
+                    st_kgs = Decimal(str(st_b)) * Decimal(str(v.kgs_per_bag))
+                    fl_tot_bags += st_b
+                    fl_tot_kgs += st_kgs
+                    floor_varieties.append({
+                        'variety_id': v.id,
+                        'variety_name': v.name,
+                        'kgs_per_bag': float(v.kgs_per_bag),
+                        'inward_bags': in_b,
+                        'outward_bags': out_b,
+                        'bags': st_b,
+                        'kgs': float(st_kgs)
+                    })
+
+            results.append({
+                'floor_id': f.id,
+                'floor_name': f.name,
+                'description': f.description or '',
+                'total_bags': fl_tot_bags,
+                'total_kgs': float(fl_tot_kgs),
+                'varieties': floor_varieties
+            })
+
+        # Unassigned / historical
+        un_varieties = []
+        un_tot_bags = 0
+        un_tot_kgs = Decimal('0.00')
+        for v in varieties:
+            entry = matrix.get(None, {}).get(v.id, {'in_bags': 0, 'out_bags': 0})
+            in_b = entry['in_bags']
+            out_b = entry['out_bags']
+            st_b = in_b - out_b
+            if in_b > 0 or out_b > 0 or st_b != 0:
+                st_kgs = Decimal(str(st_b)) * Decimal(str(v.kgs_per_bag))
+                un_tot_bags += st_b
+                un_tot_kgs += st_kgs
+                un_varieties.append({
+                    'variety_id': v.id,
+                    'variety_name': v.name,
+                    'kgs_per_bag': float(v.kgs_per_bag),
+                    'inward_bags': in_b,
+                    'outward_bags': out_b,
+                    'bags': st_b,
+                    'kgs': float(st_kgs)
+                })
+
+        if un_varieties:
+            results.append({
+                'floor_id': None,
+                'floor_name': 'General / Unassigned',
+                'description': 'Historical transactions recorded before floor assignment',
+                'total_bags': un_tot_bags,
+                'total_kgs': float(un_tot_kgs),
+                'varieties': un_varieties
+            })
+
+        grand_total_bags = sum(r['total_bags'] for r in results)
+        grand_total_kgs = sum(r['total_kgs'] for r in results)
+
+        return Response({
+            'results': results,
+            'grand_total_bags': grand_total_bags,
+            'grand_total_kgs': float(grand_total_kgs)
+        })
+
+
+class FloorStockPdfView(APIView):
+    """
+    Downloads dedicated Floor Stock Inventory PDF report.
+    """
+    def get(self, request):
+        variety_id = request.query_params.get('variety_id')
+        floors = Floor.objects.all().order_by('name')
+        varieties = Variety.objects.all().order_by('name')
+        if variety_id:
+            varieties = varieties.filter(id=variety_id)
+
+        matrix = compute_floor_stock_matrix(variety_id=variety_id)
+
+        results = []
+        for f in floors:
+            floor_varieties = []
+            fl_tot_bags = 0
+            fl_tot_kgs = Decimal('0.00')
+
+            for v in varieties:
+                entry = matrix.get(f.id, {}).get(v.id, {'in_bags': 0, 'out_bags': 0})
+                in_b = entry['in_bags']
+                out_b = entry['out_bags']
+                st_b = in_b - out_b
+                if in_b > 0 or out_b > 0 or st_b != 0:
+                    st_kgs = Decimal(str(st_b)) * Decimal(str(v.kgs_per_bag))
+                    fl_tot_bags += st_b
+                    fl_tot_kgs += st_kgs
+                    floor_varieties.append({
+                        'variety_id': v.id,
+                        'variety_name': v.name,
+                        'kgs_per_bag': float(v.kgs_per_bag),
+                        'inward_bags': in_b,
+                        'outward_bags': out_b,
+                        'bags': st_b,
+                        'kgs': float(st_kgs)
+                    })
+
+            results.append({
+                'floor_id': f.id,
+                'floor_name': f.name,
+                'total_bags': fl_tot_bags,
+                'total_kgs': float(fl_tot_kgs),
+                'varieties': floor_varieties
+            })
+
+        # Unassigned / historical
+        un_varieties = []
+        un_tot_bags = 0
+        un_tot_kgs = Decimal('0.00')
+        for v in varieties:
+            entry = matrix.get(None, {}).get(v.id, {'in_bags': 0, 'out_bags': 0})
+            in_b = entry['in_bags']
+            out_b = entry['out_bags']
+            st_b = in_b - out_b
+            if in_b > 0 or out_b > 0 or st_b != 0:
+                st_kgs = Decimal(str(st_b)) * Decimal(str(v.kgs_per_bag))
+                un_tot_bags += st_b
+                un_tot_kgs += st_kgs
+                un_varieties.append({
+                    'variety_id': v.id,
+                    'variety_name': v.name,
+                    'kgs_per_bag': float(v.kgs_per_bag),
+                    'inward_bags': in_b,
+                    'outward_bags': out_b,
+                    'bags': st_b,
+                    'kgs': float(st_kgs)
+                })
+
+        if un_varieties:
+            results.append({
+                'floor_id': None,
+                'floor_name': 'General / Unassigned',
+                'total_bags': un_tot_bags,
+                'total_kgs': float(un_tot_kgs),
+                'varieties': un_varieties
+            })
+
+        grand_total_bags = sum(r['total_bags'] for r in results)
+        grand_total_kgs = sum(r['total_kgs'] for r in results)
+
+        data = {
+            'results': results,
+            'grand_total_bags': grand_total_bags,
+            'grand_total_kgs': float(grand_total_kgs)
+        }
+
+        generated_by = request.user.username if request.user and request.user.is_authenticated else "Mother India Admin"
+        pdf_bytes = generate_floor_stock_pdf(data, generated_by=generated_by)
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        filename = f"Floor_Stock_Report_{timezone.now().date().strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+

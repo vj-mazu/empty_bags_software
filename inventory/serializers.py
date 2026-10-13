@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import UserProfile, Place, Party, Variety, Inward, Outward, DailyStockSummary, Role
+from .models import UserProfile, Place, Floor, Party, Variety, Inward, Outward, DailyStockSummary, Role, calculate_floor_stock
 from django.db.models import Sum, Count, Q
 
 
@@ -36,6 +36,21 @@ class PlaceSerializer(serializers.ModelSerializer):
         return obj.parties.count() == 0
 
 
+class FloorSerializer(serializers.ModelSerializer):
+    can_delete = serializers.SerializerMethodField()
+    total_bags = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Floor
+        fields = ['id', 'name', 'description', 'created_at', 'can_delete', 'total_bags']
+
+    def get_can_delete(self, obj):
+        return (obj.inwards.count() + obj.outwards.count()) == 0
+
+    def get_total_bags(self, obj):
+        return calculate_floor_stock(obj.id)
+
+
 class PartySerializer(serializers.ModelSerializer):
     place_name = serializers.ReadOnlyField(source='place.name')
     can_delete = serializers.SerializerMethodField()
@@ -58,7 +73,11 @@ class VarietySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Variety
-        fields = ['id', 'name', 'photo', 'photo_data', 'photo_url', 'kgs_per_bag', 'created_at', 'current_stock_bags', 'current_stock_kgs', 'can_delete']
+        fields = [
+            'id', 'name', 'photo', 'photo_data', 'photo_url', 'kgs_per_bag',
+            'order_placed', 'order_date', 'order_bags', 'order_notes',
+            'created_at', 'current_stock_bags', 'current_stock_kgs', 'can_delete'
+        ]
 
     def get_photo_url(self, obj):
         if obj.photo_data:
@@ -91,6 +110,7 @@ class VarietySerializer(serializers.ModelSerializer):
 class InwardSerializer(serializers.ModelSerializer):
     party_name = serializers.ReadOnlyField(source='party.name')
     variety_name = serializers.ReadOnlyField(source='variety.name')
+    floor_name = serializers.ReadOnlyField(source='floor.name')
     kgs_per_bag = serializers.ReadOnlyField(source='variety.kgs_per_bag')
     created_by_name = serializers.ReadOnlyField(source='created_by.username')
 
@@ -98,14 +118,26 @@ class InwardSerializer(serializers.ModelSerializer):
         model = Inward
         fields = [
             'id', 'sl_no', 'invoice_no', 'date', 'party', 'party_name', 
-            'variety', 'variety_name', 'kgs_per_bag', 'rate', 'bags', 
+            'variety', 'variety_name', 'floor', 'floor_name', 'floor_allocations', 'kgs_per_bag', 'rate', 'bags', 
             'total_kgs', 'lf_toggle', 'lf_amount', 'total_value', 'per_bag_cost', 'created_by', 'created_by_name', 'created_at'
         ]
+
+    def validate(self, data):
+        floor_allocations = data.get('floor_allocations')
+        total_bags = data.get('bags', 0)
+        if floor_allocations and isinstance(floor_allocations, list) and len(floor_allocations) > 0:
+            alloc_sum = sum(int(item.get('bags', 0) or 0) for item in floor_allocations)
+            if alloc_sum != total_bags:
+                raise serializers.ValidationError({
+                    "floor_allocations": f"Total allocated floor bags ({alloc_sum}) must exactly equal total inward bags ({total_bags})!"
+                })
+        return data
 
 
 class OutwardSerializer(serializers.ModelSerializer):
     party_name = serializers.ReadOnlyField(source='party.name')
     variety_name = serializers.ReadOnlyField(source='variety.name')
+    floor_name = serializers.ReadOnlyField(source='floor.name')
     kgs_per_bag = serializers.ReadOnlyField(source='variety.kgs_per_bag')
     to_place_name = serializers.ReadOnlyField(source='to_place.name')
     created_by_name = serializers.ReadOnlyField(source='created_by.username')
@@ -114,7 +146,7 @@ class OutwardSerializer(serializers.ModelSerializer):
         model = Outward
         fields = [
             'id', 'sl_no', 'invoice_no', 'date', 'party', 'party_name', 
-            'variety', 'variety_name', 'kgs_per_bag', 'rate', 'bags', 
+            'variety', 'variety_name', 'floor', 'floor_name', 'floor_allocations', 'kgs_per_bag', 'rate', 'bags', 
             'total_kgs', 'lf_toggle', 'lf_amount', 'is_transfer', 
             'from_place', 'from_place_name', 'to_place', 'to_place_name', 'total_value', 
             'per_bag_cost', 'created_by', 'created_by_name', 'created_at'
@@ -161,6 +193,35 @@ class OutwardSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "bags": f"Insufficient branch stock! Branch '{from_place.name}' only has {branch_available} bags of '{variety.name}' remaining. Cannot dispatch {requested_bags} bags."
                 })
+
+        # 3. Floor-Specific Stock Validation (when selling or transferring from Mother India)
+        if not from_place:
+            floor_allocations = data.get('floor_allocations')
+            single_floor = data.get('floor')
+
+            if floor_allocations and isinstance(floor_allocations, list) and len(floor_allocations) > 0:
+                alloc_sum = sum(int(item.get('bags', 0) or 0) for item in floor_allocations)
+                if alloc_sum != requested_bags:
+                    raise serializers.ValidationError({
+                        "floor_allocations": f"Total allocated floor bags ({alloc_sum}) must exactly equal total outward bags ({requested_bags})!"
+                    })
+                for item in floor_allocations:
+                    f_id = item.get('floor_id')
+                    alloc_b = int(item.get('bags', 0) or 0)
+                    if f_id and alloc_b > 0:
+                        fl_obj = Floor.objects.filter(id=f_id).first()
+                        fl_name = fl_obj.name if fl_obj else f"Floor #{f_id}"
+                        avail = calculate_floor_stock(f_id, variety=variety, exclude_outward_id=self.instance.id if self.instance else None)
+                        if alloc_b > avail:
+                            raise serializers.ValidationError({
+                                "floor_allocations": f"Insufficient stock on '{fl_name}'! Only {avail} bags available for '{variety.name}', but {alloc_b} bags requested."
+                            })
+            elif single_floor:
+                avail = calculate_floor_stock(single_floor.id, variety=variety, exclude_outward_id=self.instance.id if self.instance else None)
+                if requested_bags > avail:
+                    raise serializers.ValidationError({
+                        "bags": f"Insufficient stock on '{single_floor.name}'! Only {avail} bags available for '{variety.name}', but {requested_bags} bags requested."
+                    })
 
         return data
 

@@ -148,25 +148,36 @@ export const createPlace = (d) => { invalidateCache('places'); invalidateCache('
 export const updatePlace = (id, d) => { invalidateCache('places'); invalidateCache('place-ledger'); invalidateCache('stocks-today'); return api(`/places/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
 export const deletePlace = (id) => { invalidateCache('places'); invalidateCache('place-ledger'); invalidateCache('stocks-today'); return api(`/places/${id}/`, { method: 'DELETE' }); };
 
+export const getFloors = () => cachedFetch('floors', () => api('/floors/'), 300000);
+export const createFloor = (d) => { invalidateCache('floors'); invalidateCache('floor-stock'); return api('/floors/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateFloor = (id, d) => { invalidateCache('floors'); invalidateCache('floor-stock'); return api(`/floors/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteFloor = (id) => { invalidateCache('floors'); invalidateCache('floor-stock'); return api(`/floors/${id}/`, { method: 'DELETE' }); };
+
+export const getFloorStock = (varietyId = '') => {
+  const q = varietyId ? `?variety_id=${varietyId}` : '';
+  return api(`/floor-stock/${q}`);
+};
+
 export const getParties = () => cachedFetch('parties', () => api('/parties/'), 300000);
 export const createParty = (d) => { invalidateCache('parties'); invalidateCache('stocks-today'); return api('/parties/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
 export const updateParty = (id, d) => { invalidateCache('parties'); invalidateCache('stocks-today'); return api(`/parties/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
 export const deleteParty = (id) => { invalidateCache('parties'); invalidateCache('stocks-today'); return api(`/parties/${id}/`, { method: 'DELETE' }); };
 
 export const getVarieties = () => cachedFetch('varieties', () => api('/varieties/'), 120000);  // 2 min cache
-export const createVariety = (formData) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); return api('/varieties/', { method: 'POST', body: formData }); };
-export const updateVariety = (id, formData) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); return api(`/varieties/${id}/`, { method: 'PATCH', body: formData }); };
-export const deleteVariety = (id, force = false) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); invalidateCache('place-ledger'); return api(`/varieties/${id}/${force ? '?force=true' : ''}`, { method: 'DELETE' }); };
+export const createVariety = (formData) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api('/varieties/', { method: 'POST', body: formData }); };
+export const updateVariety = (id, formData) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api(`/varieties/${id}/`, { method: 'PATCH', body: formData }); };
+export const deleteVariety = (id, force = false) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); invalidateCache('empty-bags-ledger'); invalidateCache('place-ledger'); invalidateCache('floor-stock'); return api(`/varieties/${id}/${force ? '?force=true' : ''}`, { method: 'DELETE' }); };
+export const placeVarietyOrder = (id, data) => { invalidateCache('varieties'); invalidateCache('stocks-today'); invalidateCache('dashboard'); return api(`/varieties/${id}/place-order/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); };
 
 // ═══ Inward / Outward ═══════════════════════════════════════════════════════
 
-export const createInward = (d) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); return api('/inward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const updateInward = (id, d) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); return api(`/inward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const deleteInward = (id) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); return api(`/inward/${id}/`, { method: 'DELETE' }); };
+export const createInward = (d) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api('/inward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateInward = (id, d) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api(`/inward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteInward = (id) => { invalidateCache('inward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api(`/inward/${id}/`, { method: 'DELETE' }); };
 
-export const createOutward = (d) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); return api('/outward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const updateOutward = (id, d) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); return api(`/outward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
-export const deleteOutward = (id) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); return api(`/outward/${id}/`, { method: 'DELETE' }); };
+export const createOutward = (d) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api('/outward/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const updateOutward = (id, d) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api(`/outward/${id}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }); };
+export const deleteOutward = (id) => { invalidateCache('outward'); invalidateCache('dashboard'); invalidateCache('stocks-today'); invalidateCache('varieties'); invalidateCache('place-ledger'); invalidateCache('empty-bags-ledger'); invalidateCache('floor-stock'); return api(`/outward/${id}/`, { method: 'DELETE' }); };
 
 // ═══ Dashboard API (pre-aggregated, 30-sec cache) ═══════════════════════════
 
@@ -228,6 +239,12 @@ export const downloadPdf = (type, id) => {
 
 export const downloadVarietyMasterPdf = () => {
   window.open(`${API}/varieties/export-pdf/`, '_blank');
+};
+
+export const downloadFloorStockPdf = (params = {}) => {
+  const q = new URLSearchParams();
+  if (params.variety_id) q.set('variety_id', params.variety_id);
+  window.open(`${API}/floor-stock/export-pdf/?${q.toString()}`, '_blank');
 };
 
 export const downloadStocksPdf = (params = {}) => {

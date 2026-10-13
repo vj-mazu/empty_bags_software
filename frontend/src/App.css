@@ -454,15 +454,35 @@ tr:hover td {
   max-width: 150px;
 }
 
-/* Highlighted / Pinned Variety Row (Lite Yellow) */
-tr.variety-highlighted-row td {
-  background-color: #fef9c3 !important; /* Soft Lite Yellow */
-  border-top-color: #fde047 !important;
-  border-bottom-color: #fde047 !important;
+/* Highlighted / Pinned Variety Rows (Red, Green, Black) */
+tr.variety-highlighted-red td {
+  background-color: #fee2e2 !important; /* Soft Lite Red */
+  border-top-color: #fca5a5 !important;
+  border-bottom-color: #fca5a5 !important;
 }
 
-tr.variety-highlighted-row:hover td {
-  background-color: #fef08a !important; /* Slightly richer yellow on hover */
+tr.variety-highlighted-red:hover td {
+  background-color: #fecaca !important; /* Slightly richer red on hover */
+}
+
+tr.variety-highlighted-green td {
+  background-color: #dcfce7 !important; /* Soft Lite Green */
+  border-top-color: #86efac !important;
+  border-bottom-color: #86efac !important;
+}
+
+tr.variety-highlighted-green:hover td {
+  background-color: #bbf7d0 !important; /* Slightly richer green on hover */
+}
+
+tr.variety-highlighted-black td {
+  background-color: #f8fafc !important; /* Subtle Dark/Slate highlight */
+  border-top-color: #94a3b8 !important;
+  border-bottom-color: #94a3b8 !important;
+}
+
+tr.variety-highlighted-black:hover td {
+  background-color: #e2e8f0 !important;
 }
 
 /* ─── SEGMENTED VIEW CONTROLS (REGISTER SWITCHERS) ─── */

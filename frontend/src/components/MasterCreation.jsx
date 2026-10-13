@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   getUsers, createUser, updateUser, deleteUser,
   getPlaces, createPlace, updatePlace, deletePlace,
+  getFloors, createFloor, updateFloor, deleteFloor,
   getParties, createParty, updateParty, deleteParty,
   getVarieties, createVariety, updateVariety, deleteVariety,
-  downloadVarietyMasterPdf
+  downloadVarietyMasterPdf, downloadFloorStockPdf, getFloorStock,
+  placeVarietyOrder
 } from '../api';
 import CustomConfirmModal from './CustomConfirmModal';
 
@@ -25,45 +27,88 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   // Data States
   const [users, setUsers] = useState([]);
   const [places, setPlaces] = useState([]);
+  const [floors, setFloors] = useState([]);
   const [parties, setParties] = useState([]);
   const [varieties, setVarieties] = useState([]);
+  const [floorStockReport, setFloorStockReport] = useState(null);
 
   // Modal States
   const [showUserModal, setShowUserModal] = useState(false);
   const [showPlaceModal, setShowPlaceModal] = useState(false);
+  const [showFloorModal, setShowFloorModal] = useState(false);
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [showVarietyModal, setShowVarietyModal] = useState(false);
+
+  // Bag Order Modal State (Owner Only)
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderModalVariety, setOrderModalVariety] = useState(null);
+  const [orderForm, setOrderForm] = useState({
+    order_date: new Date().toISOString().split('T')[0],
+    order_bags: '',
+    order_notes: ''
+  });
+  const [savingOrder, setSavingOrder] = useState(false);
 
   // Edit Tracking IDs
   const [editUserId, setEditUserId] = useState(null);
   const [editPlaceId, setEditPlaceId] = useState(null);
+  const [editFloorId, setEditFloorId] = useState(null);
   const [editPartyId, setEditPartyId] = useState(null);
   const [editVarietyId, setEditVarietyId] = useState(null);
 
   // Form States
   const [userForm, setUserForm] = useState({ username: '', password: '', role: 'STAFF' });
   const [placeForm, setPlaceForm] = useState({ name: '' });
+  const [floorForm, setFloorForm] = useState({ name: '', description: '' });
   const [partyForm, setPartyForm] = useState({ name: '', shortcut_name: '', phone_number: '', place: '' });
   const [varietyForm, setVarietyForm] = useState({ name: '', kgs_per_bag: '', photo: null });
   const [previewPhoto, setPreviewPhoto] = useState(null);
   const [phoneError, setPhoneError] = useState('');
 
-  // Highlighted / Pinned Varieties
-  const [highlightedVarietyIds, setHighlightedVarietyIds] = useState(() => {
+  // Highlighted / Pinned Varieties (supports 'red', 'green', 'black')
+  const [highlightedVarieties, setHighlightedVarieties] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('mother_india_highlighted_varieties') || '[]');
+      const saved = JSON.parse(localStorage.getItem('mother_india_highlighted_varieties') || '{}');
+      if (Array.isArray(saved)) {
+        const map = {};
+        saved.forEach(id => { map[id] = 'red'; });
+        return map;
+      }
+      return saved && typeof saved === 'object' ? saved : {};
     } catch (e) {
-      return [];
+      return {};
     }
   });
 
-  const toggleHighlightVariety = (id) => {
-    setHighlightedVarietyIds(prev => {
-      let updated;
-      if (prev.includes(id)) {
-        updated = prev.filter(vId => vId !== id);
+  const toggleHighlightVariety = (id, color) => {
+    setHighlightedVarieties(prev => {
+      const updated = { ...prev };
+      if (updated[id] === color) {
+        delete updated[id];
       } else {
-        updated = [...prev, id];
+        updated[id] = color;
+      }
+      try {
+        localStorage.setItem('mother_india_highlighted_varieties', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const cycleHighlightVariety = (id) => {
+    const cur = highlightedVarieties[id];
+    let nextColor = null;
+    if (!cur) nextColor = 'red';
+    else if (cur === 'red') nextColor = 'green';
+    else if (cur === 'green') nextColor = 'black';
+    else nextColor = null;
+
+    setHighlightedVarieties(prev => {
+      const updated = { ...prev };
+      if (nextColor) {
+        updated[id] = nextColor;
+      } else {
+        delete updated[id];
       }
       try {
         localStorage.setItem('mother_india_highlighted_varieties', JSON.stringify(updated));
@@ -85,14 +130,18 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const loadAllData = async () => {
     loadUsers();
     loadPlaces();
+    loadFloors();
     loadParties();
     loadVarieties();
+    loadFloorStock();
   };
 
   const loadUsers = () => getUsers().then(res => setUsers(res.results || res.data || res)).catch(console.error);
   const loadPlaces = () => getPlaces().then(res => setPlaces(res.results || res.data || res)).catch(console.error);
+  const loadFloors = () => getFloors().then(res => setFloors(res.results || res.data || res)).catch(console.error);
   const loadParties = () => getParties().then(res => setParties(res.results || res.data || res)).catch(console.error);
   const loadVarieties = () => getVarieties().then(res => setVarieties(res.results || res.data || res)).catch(console.error);
+  const loadFloorStock = () => getFloorStock().then(res => setFloorStockReport(res)).catch(console.error);
 
   // --- Reset forms ---
   const closeUserModal = () => {
@@ -104,6 +153,11 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
     setShowPlaceModal(false);
     setEditPlaceId(null);
     setPlaceForm({ name: '' });
+  };
+  const closeFloorModal = () => {
+    setShowFloorModal(false);
+    setEditFloorId(null);
+    setFloorForm({ name: '', description: '' });
   };
   const closePartyModal = () => {
     setShowPartyModal(false);
@@ -209,6 +263,56 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           loadPlaces();
         } catch (err) {
           if (showToast) showToast(err.message || 'Cannot delete place linked to parties!', 'error');
+        }
+      }
+    });
+  };
+
+  // --- Handlers: Floor ---
+  const handleFloorSubmit = async (e) => {
+    e.preventDefault();
+    if (!floorForm.name.trim()) return;
+    try {
+      if (editFloorId) {
+        await updateFloor(editFloorId, floorForm);
+      } else {
+        await createFloor(floorForm);
+      }
+      if (showToast) showToast(`Floor ${editFloorId ? 'updated' : 'created'} successfully!`);
+      closeFloorModal();
+      loadFloors();
+      loadFloorStock();
+    } catch (err) {
+      if (showToast) showToast(err.message || 'Error saving floor', 'error');
+    }
+  };
+
+  const handleEditFloorClick = (fl) => {
+    setEditFloorId(fl.id);
+    setFloorForm({ name: fl.name, description: fl.description || '' });
+    setShowFloorModal(true);
+  };
+
+  const handleDeleteFloor = (id) => {
+    if (user?.role !== 'OWNER') {
+      if (showToast) showToast('Only OWNER can delete floors!', 'error');
+      return;
+    }
+    setConfirmState({
+      isOpen: true,
+      title: 'Delete Floor Location?',
+      message: 'Are you sure you want to delete this floor? Floors linked to transactions or active stock cannot be deleted.',
+      confirmText: 'Delete Floor',
+      confirmColor: '#dc2626',
+      onConfirm: async () => {
+        setConfirmState(prev => ({ ...prev, isOpen: false }));
+        try {
+          await deleteFloor(id);
+          if (showToast) showToast('Floor deleted successfully!');
+          loadFloors();
+          loadFloorStock();
+        } catch (err) {
+          if (showToast) showToast(err.message || 'Cannot delete floor with active transactions!', 'error');
         }
       }
     });
@@ -387,6 +491,53 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
     });
   };
 
+  const handleOpenOrderModal = (v) => {
+    if (user?.role !== 'OWNER') {
+      if (showToast) showToast('Only OWNER can place or manage bag orders!', 'error');
+      return;
+    }
+    setOrderModalVariety(v);
+    setOrderForm({
+      order_date: v.order_date || new Date().toISOString().split('T')[0],
+      order_bags: v.order_bags ? String(v.order_bags) : '',
+      order_notes: v.order_notes || ''
+    });
+    setShowOrderModal(true);
+  };
+
+  const handleSaveOrder = async (e) => {
+    e.preventDefault();
+    if (!orderModalVariety) return;
+    try {
+      setSavingOrder(true);
+      await placeVarietyOrder(orderModalVariety.id, {
+        order_placed: true,
+        order_date: orderForm.order_date,
+        order_bags: orderForm.order_bags ? parseInt(orderForm.order_bags, 10) : null,
+        order_notes: orderForm.order_notes || ''
+      });
+      if (showToast) showToast(`Bag order for "${orderModalVariety.name}" recorded successfully!`);
+      setShowOrderModal(false);
+      setOrderModalVariety(null);
+      loadVarieties();
+    } catch (err) {
+      if (showToast) showToast(err.message || 'Error saving bag order', 'error');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleClearOrder = async (v) => {
+    if (user?.role !== 'OWNER') return;
+    try {
+      await placeVarietyOrder(v.id, { order_placed: false });
+      if (showToast) showToast(`Bag order for "${v.name}" marked received/cleared!`);
+      loadVarieties();
+    } catch (err) {
+      if (showToast) showToast(err.message || 'Error clearing bag order', 'error');
+    }
+  };
+
   // Filtered lists
   const q = searchTerm.toLowerCase().trim();
   const filteredParties = parties.filter(p => 
@@ -395,14 +546,18 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const filteredVarieties = varieties
     .filter(v => !q || v.name?.toLowerCase().includes(q) || String(v.kgs_per_bag).includes(q))
     .sort((a, b) => {
-      const aHigh = highlightedVarietyIds.includes(a.id);
-      const bHigh = highlightedVarietyIds.includes(b.id);
-      if (aHigh && !bHigh) return -1;
-      if (!aHigh && bHigh) return 1;
+      const aColor = highlightedVarieties[a.id];
+      const bColor = highlightedVarieties[b.id];
+      const score = (c) => (c === 'red' ? 3 : c === 'green' ? 2 : c === 'black' ? 1 : 0);
+      const diff = score(bColor) - score(aColor);
+      if (diff !== 0) return diff;
       return (a.name || '').localeCompare(b.name || '');
     });
   const filteredPlaces = places.filter(p => 
     !q || p.name?.toLowerCase().includes(q)
+  );
+  const filteredFloors = floors.filter(fl => 
+    !q || fl.name?.toLowerCase().includes(q) || fl.description?.toLowerCase().includes(q)
   );
   const filteredUsers = users.filter(u => 
     !q || u.username?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q)
@@ -418,7 +573,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
             <i className="fas fa-sliders" style={{ color: '#2563eb' }}></i> Master Records Management
           </h2>
           <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '0.15rem' }}>
-            Configure and maintain core database masters for Parties, Varieties, Branches, and System Users.
+            Configure and maintain core database masters for Parties, Varieties, Godown Floors, Branches, and System Users.
           </p>
         </div>
 
@@ -458,6 +613,15 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
           <i className="fas fa-wheat-awn" style={{ color: currentMasterTab === 'variety' ? '#10b981' : '#64748b' }}></i>
           <span>Variety Master</span>
           <span className="tab-badge">{varieties.length}</span>
+        </button>
+
+        <button 
+          className={`master-tab-btn ${currentMasterTab === 'floor' ? 'active' : ''}`} 
+          onClick={() => { setCurrentMasterTab('floor'); setSearchTerm(''); }}
+        >
+          <i className="fas fa-layer-group" style={{ color: currentMasterTab === 'floor' ? '#0284c7' : '#64748b' }}></i>
+          <span>Floor Master</span>
+          <span className="tab-badge">{floors.length}</span>
         </button>
 
         <button 
@@ -562,43 +726,71 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '5%', textAlign: 'center' }}>SL</th>
-                  <th style={{ width: '8%', textAlign: 'center' }}>Photo</th>
-                  <th style={{ width: '37%' }}>Variety Name</th>
-                  <th style={{ width: '20%' }}>Standard Weight (Kg/Bag)</th>
-                  <th style={{ width: '18%' }}>Stock Position</th>
+                  <th style={{ width: '6%', textAlign: 'center' }}>SL</th>
+                  <th style={{ width: '7%', textAlign: 'center' }}>Photo</th>
+                  <th style={{ width: '27%' }}>Variety Name</th>
+                  <th style={{ width: '15%' }}>Standard Weight (Kg/Bag)</th>
+                  <th style={{ width: '15%' }}>Stock Position</th>
+                  <th style={{ width: '18%' }}>Bag Order Status</th>
                   <th style={{ width: '12%', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredVarieties.map((v, idx) => {
-                  const isHighlighted = highlightedVarietyIds.includes(v.id);
+                  const highlightColor = highlightedVarieties[v.id]; // 'red', 'green', 'black', or undefined
+                  const isRed = highlightColor === 'red';
+                  const isGreen = highlightColor === 'green';
+                  const isBlack = highlightColor === 'black';
+                  const rowClass = isRed ? 'variety-highlighted-red' : isGreen ? 'variety-highlighted-green' : isBlack ? 'variety-highlighted-black' : '';
+                  const borderLeft = isRed ? '4px solid #ef4444' : isGreen ? '4px solid #16a34a' : isBlack ? '4px solid #0f172a' : '4px solid transparent';
+                  const photoBorder = isRed ? '2px solid #ef4444' : isGreen ? '2px solid #16a34a' : isBlack ? '2px solid #0f172a' : '1.5px solid #cbd5e1';
+
                   return (
                     <tr 
                       key={v.id}
-                      className={isHighlighted ? 'variety-highlighted-row' : ''}
-                      style={{
-                        borderLeft: isHighlighted ? '4px solid #eab308' : '4px solid transparent'
-                      }}
+                      className={rowClass}
+                      style={{ borderLeft }}
                     >
                       <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.2rem' }}>
                           <button
                             type="button"
-                            onClick={() => toggleHighlightVariety(v.id)}
-                            title={isHighlighted ? "Remove highlight" : "Highlight and pin to top"}
+                            onClick={() => cycleHighlightVariety(v.id)}
+                            title={
+                              isRed ? "Red Star (Click to switch to Green)" :
+                              isGreen ? "Green Star (Click to switch to Black)" :
+                              isBlack ? "Black Star (Click to unhighlight)" :
+                              "Click star to Highlight & Pin (Red -> Green -> Black)"
+                            }
                             style={{
                               background: 'none',
                               border: 'none',
                               cursor: 'pointer',
                               padding: '2px',
-                              color: isHighlighted ? '#f59e0b' : '#cbd5e1',
-                              fontSize: '0.95rem'
+                              color: isRed ? '#ef4444' : isGreen ? '#16a34a' : isBlack ? '#0f172a' : '#cbd5e1',
+                              fontSize: '0.92rem'
                             }}
                           >
-                            <i className={isHighlighted ? "fas fa-star" : "far fa-star"}></i>
+                            <i className={(isRed || isGreen || isBlack) ? "fas fa-star" : "far fa-star"}></i>
                           </button>
-                          <span>{idx + 1}</span>
+                          <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '2px', marginRight: '3px' }}>
+                            <span 
+                              onClick={() => toggleHighlightVariety(v.id, 'red')}
+                              title="Set Red Star"
+                              style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', cursor: 'pointer', opacity: isRed ? 1 : 0.35, transform: isRed ? 'scale(1.2)' : 'none' }}
+                            />
+                            <span 
+                              onClick={() => toggleHighlightVariety(v.id, 'green')}
+                              title="Set Green Star"
+                              style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#16a34a', cursor: 'pointer', opacity: isGreen ? 1 : 0.35, transform: isGreen ? 'scale(1.2)' : 'none' }}
+                            />
+                            <span 
+                              onClick={() => toggleHighlightVariety(v.id, 'black')}
+                              title="Set Black Star"
+                              style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#0f172a', cursor: 'pointer', opacity: isBlack ? 1 : 0.35, transform: isBlack ? 'scale(1.2)' : 'none' }}
+                            />
+                          </div>
+                          <span style={{ minWidth: '16px' }}>{idx + 1}</span>
                         </div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
@@ -617,7 +809,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                                 height: '38px', 
                                 objectFit: 'cover', 
                                 borderRadius: '6px', 
-                                border: isHighlighted ? '2px solid #f59e0b' : '1.5px solid #cbd5e1',
+                                border: photoBorder,
                                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
                               }} 
                             />
@@ -629,24 +821,60 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                         )}
                       </td>
                       <td style={{ fontWeight: 700, color: '#0f172a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                           <span>{v.name}</span>
-                          {isHighlighted && (
+                          {isRed && (
                             <span 
                               style={{ 
                                 fontSize: '0.68rem', 
-                                background: '#fef3c7', 
-                                color: '#b45309', 
-                                border: '1px solid #fde68a', 
+                                background: '#fee2e2', 
+                                color: '#b91c1c', 
+                                border: '1px solid #fca5a5', 
                                 padding: '1px 6px', 
                                 borderRadius: '999px', 
-                                fontWeight: 800,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px'
+                                fontWeight: 800, 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '3px' 
                               }}
                             >
-                              <i className="fas fa-star" style={{ fontSize: '0.6rem' }}></i> Priority
+                              <i className="fas fa-star" style={{ fontSize: '0.6rem' }}></i> Red Star
+                            </span>
+                          )}
+                          {isGreen && (
+                            <span 
+                              style={{ 
+                                fontSize: '0.68rem', 
+                                background: '#dcfce7', 
+                                color: '#15803d', 
+                                border: '1px solid #86efac', 
+                                padding: '1px 6px', 
+                                borderRadius: '999px', 
+                                fontWeight: 800, 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '3px' 
+                              }}
+                            >
+                              <i className="fas fa-star" style={{ fontSize: '0.6rem' }}></i> Green Star
+                            </span>
+                          )}
+                          {isBlack && (
+                            <span 
+                              style={{ 
+                                fontSize: '0.68rem', 
+                                background: '#f1f5f9', 
+                                color: '#0f172a', 
+                                border: '1px solid #cbd5e1', 
+                                padding: '1px 6px', 
+                                borderRadius: '999px', 
+                                fontWeight: 800, 
+                                display: 'inline-flex', 
+                                alignItems: 'center', 
+                                gap: '3px' 
+                              }}
+                            >
+                              <i className="fas fa-star" style={{ fontSize: '0.6rem' }}></i> Black Star
                             </span>
                           )}
                         </div>
@@ -654,6 +882,84 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                       <td style={{ fontWeight: 600, color: '#2563eb' }}>{v.kgs_per_bag} kg</td>
                       <td style={{ fontWeight: 700, color: (v.current_stock_bags || 0) < 2000 ? '#ef4444' : '#059669' }}>
                         {(v.current_stock_bags || 0).toLocaleString()} Bags
+                      </td>
+                      <td>
+                        {v.order_placed ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ 
+                              fontSize: '0.72rem', 
+                              background: '#eff6ff', 
+                              color: '#1d4ed8', 
+                              border: '1px solid #bfdbfe', 
+                              padding: '2px 8px', 
+                              borderRadius: '6px', 
+                              fontWeight: 800, 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '5px',
+                              width: 'fit-content'
+                            }}>
+                              <i className="fas fa-cart-shopping" style={{ color: '#2563eb' }}></i> 
+                              Order Placed: {v.order_bags ? `${Number(v.order_bags).toLocaleString()} Bags` : 'Bags Ordered'}
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: '#475569', fontWeight: 600 }}>
+                              Date: {v.order_date || '-'} {v.order_notes ? `• ${v.order_notes}` : ''}
+                            </span>
+                            {user?.role === 'OWNER' && (
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '2px', alignItems: 'center' }}>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleOpenOrderModal(v)}
+                                  style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.68rem', color: '#2563eb', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                >
+                                  Edit Order
+                                </button>
+                                <span style={{ color: '#cbd5e1' }}>•</span>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleClearOrder(v)}
+                                  style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.68rem', color: '#16a34a', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                  title="Mark bags as received in godown"
+                                >
+                                  Mark Received
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            {(v.current_stock_bags || 0) < 2000 ? (
+                              <span style={{ fontSize: '0.7rem', color: '#ea580c', fontWeight: 700, background: '#fff7ed', border: '1px solid #ffedd5', padding: '2px 6px', borderRadius: '4px' }}>
+                                <i className="fas fa-triangle-exclamation" style={{ marginRight: '3px' }}></i> Low (Not Ordered)
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>-</span>
+                            )}
+                            {user?.role === 'OWNER' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenOrderModal(v)}
+                                style={{
+                                  background: '#ffffff',
+                                  border: '1px solid #2563eb',
+                                  borderRadius: '5px',
+                                  padding: '2px 8px',
+                                  fontSize: '0.69rem',
+                                  fontWeight: 700,
+                                  color: '#2563eb',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  boxShadow: '0 1px 2px rgba(37,99,235,0.08)'
+                                }}
+                                title="Place bag order for this variety"
+                              >
+                                <i className="fas fa-plus" style={{ fontSize: '0.6rem' }}></i> Place Order
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
@@ -682,11 +988,131 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                   );
                 })}
                 {filteredVarieties.length === 0 && (
-                  <tr><td colSpan="6" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No varieties found matching criteria.</td></tr>
+                  <tr><td colSpan="7" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No varieties found matching criteria.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* TAB: FLOOR MASTER */}
+      {currentMasterTab === 'floor' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="card">
+            <div className="card-hdr">
+              <div className="card-title">
+                <i className="fas fa-layer-group" style={{ color: '#0284c7' }}></i> Central Godown Floor Master ({filteredFloors.length})
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button 
+                  className="btn btn-ghost" 
+                  onClick={() => downloadFloorStockPdf()}
+                  title="Download Dedicated Floor-Wise Stock Inventory PDF"
+                  style={{ border: '1px solid #cbd5e1', color: '#0f172a' }}
+                >
+                  <i className="fas fa-file-pdf" style={{ color: '#dc2626' }}></i> Download Floor PDF
+                </button>
+                <button className="btn btn-blue" onClick={() => setShowFloorModal(true)}>
+                  <i className="fas fa-plus"></i> Add New Floor
+                </button>
+              </div>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: '6%', textAlign: 'center' }}>SL</th>
+                    <th style={{ width: '34%' }}>Floor / Section Name</th>
+                    <th style={{ width: '30%' }}>Description / Notes</th>
+                    <th style={{ width: '18%' }}>Current Stock Stored</th>
+                    <th style={{ width: '12%', textAlign: 'center' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFloors.map((fl, idx) => {
+                    const flStock = floorStockReport?.results?.find(r => r.floor_id === fl.id);
+                    const totalBags = flStock ? flStock.total_bags : (fl.total_bags || 0);
+
+                    return (
+                      <tr key={fl.id}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
+                        <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <i className="fas fa-cubes-stacked" style={{ color: '#0284c7', fontSize: '0.85rem' }}></i>
+                            <span>{fl.name}</span>
+                          </div>
+                        </td>
+                        <td style={{ color: '#64748b', fontSize: '0.85rem' }}>{fl.description || '-'}</td>
+                        <td style={{ fontWeight: 700, color: totalBags > 0 ? '#059669' : '#64748b' }}>
+                          {totalBags.toLocaleString()} Bags
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                            <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditFloorClick(fl)}>
+                              <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
+                            </button>
+                            {fl.can_delete && user?.role === 'OWNER' ? (
+                              <button className="btn btn-ghost btn-sm" title="Delete" onClick={() => handleDeleteFloor(fl.id)}>
+                                <i className="fas fa-trash" style={{ color: '#ef4444' }}></i>
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                                <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredFloors.length === 0 && (
+                    <tr><td colSpan="5" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No floors created yet. Click "Add New Floor" to set up your godown floors.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Detailed Floor Stock Matrix Breakdown */}
+          {floorStockReport && floorStockReport.results && floorStockReport.results.length > 0 && (
+            <div className="card" style={{ borderLeft: '4px solid #0284c7' }}>
+              <div className="card-hdr">
+                <div className="card-title">
+                  <i className="fas fa-chart-pie" style={{ color: '#0284c7' }}></i> Live Stock Position Across Godown Floors
+                </div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669' }}>
+                  Grand Total: {floorStockReport.grand_total_bags?.toLocaleString()} Bags ({floorStockReport.grand_total_kgs?.toLocaleString()} Kg)
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', padding: '1rem' }}>
+                {floorStockReport.results.map((flReport, rIdx) => (
+                  <div key={flReport.floor_id || `r-${rIdx}`} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #cbd5e1', paddingBottom: '0.5rem', marginBottom: '0.65rem' }}>
+                      <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <i className="fas fa-building" style={{ color: '#0284c7' }}></i> {flReport.floor_name}
+                      </span>
+                      <span style={{ fontWeight: 800, color: flReport.total_bags > 0 ? '#15803d' : '#64748b', background: flReport.total_bags > 0 ? '#dcfce7' : '#f1f5f9', padding: '2px 8px', borderRadius: '999px', fontSize: '0.75rem' }}>
+                        {flReport.total_bags.toLocaleString()} Bags
+                      </span>
+                    </div>
+                    {flReport.varieties && flReport.varieties.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {flReport.varieties.map(v => (
+                          <div key={v.variety_id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', background: '#ffffff', padding: '4px 8px', borderRadius: '4px', border: '1px solid #f1f5f9' }}>
+                            <span style={{ fontWeight: 600, color: '#334155' }}>{v.variety_name}</span>
+                            <span style={{ fontWeight: 700, color: v.bags > 0 ? '#059669' : '#dc2626' }}>{v.bags.toLocaleString()} Bags</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: '0.5rem 0' }}>No stock currently on this floor</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -864,6 +1290,49 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
         </div>
       )}
 
+      {/* MODAL: FLOOR */}
+      {showFloorModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-hdr">
+              <div className="modal-title">
+                <i className="fas fa-layer-group" style={{ color: '#0284c7' }}></i> {editFloorId ? "Edit Floor Details" : "Add New Godown Floor"}
+              </div>
+              <button className="modal-close" onClick={closeFloorModal}>&times;</button>
+            </div>
+            <form onSubmit={handleFloorSubmit}>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label>Floor / Section Name</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  value={floorForm.name} 
+                  onChange={e => setFloorForm({ ...floorForm, name: e.target.value })} 
+                  required 
+                  placeholder="e.g. Ground Floor, 1st Floor, Cellar, Godown-A" 
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label>Description / Notes (Optional)</label>
+                <input 
+                  type="text" 
+                  className="input" 
+                  value={floorForm.description} 
+                  onChange={e => setFloorForm({ ...floorForm, description: e.target.value })} 
+                  placeholder="e.g. Main storage for 50kg rice bags" 
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={closeFloorModal}>Cancel</button>
+                <button type="submit" className="btn btn-blue">
+                  <i className="fas fa-save"></i> {editFloorId ? "Update Floor" : "Save Floor"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: PARTY */}
       {showPartyModal && (
         <div className="modal-overlay">
@@ -1019,6 +1488,93 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PLACE BAG ORDER (OWNER ONLY) */}
+      {showOrderModal && orderModalVariety && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '440px' }}>
+            <div className="modal-hdr">
+              <div className="modal-title" style={{ color: '#2563eb' }}>
+                <i className="fas fa-cart-shopping"></i> Place Bag Order
+              </div>
+              <button className="modal-close" onClick={() => setShowOrderModal(false)}>&times;</button>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0f172a' }}>{orderModalVariety.name}</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px', display: 'flex', gap: '12px' }}>
+                <span>Weight: <strong>{orderModalVariety.kgs_per_bag} kg</strong></span>
+                <span>Current Stock: <strong style={{ color: (orderModalVariety.current_stock_bags || 0) < 2000 ? '#dc2626' : '#16a34a' }}>{(orderModalVariety.current_stock_bags || 0).toLocaleString()} Bags</strong></span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveOrder}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.25rem' }}>
+                <div className="form-group">
+                  <label style={{ fontWeight: 700, fontSize: '0.78rem', color: '#334155' }}>Order Date *</label>
+                  <input 
+                    type="date"
+                    className="input"
+                    value={orderForm.order_date}
+                    onChange={e => setOrderForm(prev => ({ ...prev, order_date: e.target.value }))}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: 700, fontSize: '0.78rem', color: '#334155' }}>Bags Ordered Quantity *</label>
+                  <input 
+                    type="number"
+                    className="input"
+                    value={orderForm.order_bags}
+                    onChange={e => setOrderForm(prev => ({ ...prev, order_bags: e.target.value }))}
+                    min="1"
+                    required
+                    placeholder="e.g. 5000"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: 700, fontSize: '0.78rem', color: '#334155' }}>Supplier / Vendor / Notes (Optional)</label>
+                  <input 
+                    type="text"
+                    className="input"
+                    value={orderForm.order_notes}
+                    onChange={e => setOrderForm(prev => ({ ...prev, order_notes: e.target.value }))}
+                    placeholder="e.g. Balaji Printers / Delivery next week"
+                  />
+                </div>
+              </div>
+
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {orderModalVariety.order_placed ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.78rem' }}
+                    onClick={() => {
+                      handleClearOrder(orderModalVariety);
+                      setShowOrderModal(false);
+                    }}
+                  >
+                    <i className="fas fa-check" style={{ marginRight: '4px' }}></i> Mark Received
+                  </button>
+                ) : <div />}
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowOrderModal(false)} disabled={savingOrder}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-blue" disabled={savingOrder}>
+                    <i className={savingOrder ? "fas fa-spinner fa-spin" : "fas fa-check"} style={{ marginRight: '4px' }}></i>
+                    {savingOrder ? 'Saving...' : 'Save Bag Order'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

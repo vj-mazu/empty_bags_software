@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { createInward, updateInward, createApprovalRequest, getParties, getVarieties } from '../api';
+import { createInward, updateInward, createApprovalRequest, getParties, getVarieties, getFloors, getFloorStock } from '../api';
 import { formatINR } from '../utils/formatters';
 import SearchableSelect from './SearchableSelect';
 
 const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: initialVarieties, showToast, editItem, user }) => {
   const [parties, setParties] = useState(initialParties || []);
   const [varieties, setVarieties] = useState(initialVarieties || []);
+  const [floors, setFloors] = useState([]);
+  const [floorId, setFloorId] = useState('');
+  const [allocationMode, setAllocationMode] = useState('single'); // 'single' | 'split'
+  const [allocMap, setAllocMap] = useState({}); // { [floorId]: string bags }
+  const [floorStockData, setFloorStockData] = useState(null);
+  const [loadingFloorStock, setLoadingFloorStock] = useState(false);
   const [invoiceNo, setInvoiceNo] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [partyId, setPartyId] = useState('');
@@ -24,7 +30,20 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
     if (!initialVarieties || initialVarieties.length === 0) {
       getVarieties().then(res => setVarieties(res.results || res.data || res)).catch(console.error);
     }
+    getFloors().then(res => setFloors(res.results || res.data || res)).catch(console.error);
   }, [initialParties, initialVarieties]);
+
+  useEffect(() => {
+    if (varietyId) {
+      setLoadingFloorStock(true);
+      getFloorStock(varietyId)
+        .then(res => setFloorStockData(res))
+        .catch(console.error)
+        .finally(() => setLoadingFloorStock(false));
+    } else {
+      setFloorStockData(null);
+    }
+  }, [varietyId]);
 
   useEffect(() => {
     if (editItem) {
@@ -36,6 +55,31 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
       setRate(editItem.rate || '');
       setLfOn(editItem.lf_toggle || false);
       setLfAmount(editItem.lf_amount || '');
+
+      if (editItem.floor_allocations && Array.isArray(editItem.floor_allocations) && editItem.floor_allocations.length > 0) {
+        const map = {};
+        editItem.floor_allocations.forEach(item => {
+          if (item.floor_id) {
+            map[item.floor_id] = String(item.bags || '');
+          }
+        });
+        setAllocMap(map);
+        if (editItem.floor_allocations.length > 1) {
+          setAllocationMode('split');
+          setFloorId('');
+        } else {
+          setAllocationMode('single');
+          setFloorId(String(editItem.floor_allocations[0].floor_id || ''));
+        }
+      } else if (editItem.floor) {
+        setFloorId(String(editItem.floor));
+        setAllocationMode('single');
+        setAllocMap({});
+      } else {
+        setFloorId('');
+        setAllocationMode('single');
+        setAllocMap({});
+      }
     }
   }, [editItem]);
 
@@ -51,6 +95,19 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
   const netTotalVal = totalRateVal + numLfAmount;
   const perBagCostVal = numBags > 0 ? (netTotalVal / numBags) : 0;
 
+  // Split calculations
+  const allocSum = floors.reduce((sum, f) => sum + (Number(allocMap[f.id]) || 0), 0);
+  const remainingToAlloc = numBags - allocSum;
+
+  const handleFillRemainder = (floorIdToFill) => {
+    const otherSum = floors.reduce((sum, f) => {
+      if (String(f.id) === String(floorIdToFill)) return sum;
+      return sum + (Number(allocMap[f.id]) || 0);
+    }, 0);
+    const needed = Math.max(0, numBags - otherSum);
+    setAllocMap(prev => ({ ...prev, [floorIdToFill]: String(needed) }));
+  };
+
   const isSubmittingRef = React.useRef(false);
 
   const handleSubmit = async (e) => {
@@ -60,6 +117,38 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
     if (!invoiceNo.trim() || !partyId || !varietyId || !bags || !rate) {
       setError('Please fill all required fields');
       return;
+    }
+
+    let payloadFloor = null;
+    let payloadAllocations = [];
+
+    if (allocationMode === 'split') {
+      if (allocSum !== numBags) {
+        setError(`Total allocated floor bags (${allocSum}) must exactly equal total inward bags (${numBags})! Difference: ${Math.abs(remainingToAlloc)} bags.`);
+        return;
+      }
+      const activeAllocs = floors
+        .filter(f => (Number(allocMap[f.id]) || 0) > 0)
+        .map(f => ({
+          floor_id: f.id,
+          floor_name: f.name,
+          bags: Number(allocMap[f.id])
+        }));
+      payloadAllocations = activeAllocs;
+      payloadFloor = activeAllocs.length === 1 ? activeAllocs[0].floor_id : (activeAllocs[0]?.floor_id || null);
+    } else {
+      if (floorId) {
+        const flObj = floors.find(f => String(f.id) === String(floorId));
+        payloadFloor = parseInt(floorId, 10);
+        payloadAllocations = [{
+          floor_id: parseInt(floorId, 10),
+          floor_name: flObj ? flObj.name : `Floor #${floorId}`,
+          bags: numBags
+        }];
+      } else {
+        payloadFloor = null;
+        payloadAllocations = [];
+      }
     }
 
     try {
@@ -72,6 +161,8 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
         date,
         party: partyId,
         variety: varietyId,
+        floor: payloadFloor,
+        floor_allocations: payloadAllocations,
         bags: numBags,
         rate: numRate,
         lf_toggle: lfOn,
@@ -110,7 +201,7 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
 
   return (
     <div className="modal-overlay">
-      <div className="modal">
+      <div className="modal" style={{ maxWidth: '640px' }}>
         <div className="modal-hdr">
           <div className="modal-title" style={{ color: '#10b981' }}>
             <i className="fas fa-plus-circle"></i> {editItem ? 'Edit Inward Entry' : 'New Inward Entry'}
@@ -170,6 +261,187 @@ const InwardModal = ({ onClose, onSaved, parties: initialParties, varieties: ini
                 required={true}
               />
             </div>
+          </div>
+
+          {/* Floor Allocation Mode & Section */}
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <i className="fas fa-layer-group" style={{ color: '#10b981' }}></i> Godown Floor Allocation
+              </span>
+              <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '6px', padding: '2px' }}>
+                <button
+                  type="button"
+                  onClick={() => setAllocationMode('single')}
+                  style={{
+                    border: 'none',
+                    padding: '3px 10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    background: allocationMode === 'single' ? '#10b981' : 'transparent',
+                    color: allocationMode === 'single' ? '#ffffff' : '#475569'
+                  }}
+                >
+                  Single Floor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllocationMode('split')}
+                  style={{
+                    border: 'none',
+                    padding: '3px 10px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    background: allocationMode === 'split' ? '#10b981' : 'transparent',
+                    color: allocationMode === 'split' ? '#ffffff' : '#475569'
+                  }}
+                >
+                  Split Across Multiple Floors
+                </button>
+              </div>
+            </div>
+
+            {allocationMode === 'single' ? (
+              <div>
+                <SearchableSelect 
+                  options={[{ id: '', name: 'Unassigned / General' }, ...floors.map(f => ({ id: f.id, name: f.name }))]}
+                  value={floorId}
+                  onChange={setFloorId}
+                  placeholder="Select Target Floor (e.g. Ground Floor, 1st Floor)..."
+                />
+
+                {/* Live Floor-Wise Existing Stock Display */}
+                {selectedVariety && floorStockData && (
+                  <div style={{ marginTop: '0.65rem' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', marginBottom: '0.35rem' }}>
+                      Current Stock on Floors for {selectedVariety.name} (Click to select):
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      {floorStockData.floors && floorStockData.floors.length > 0 ? (
+                        floorStockData.floors.map(f => {
+                          const isSelected = String(floorId) === String(f.floor_id);
+                          return (
+                            <div 
+                              key={f.floor_id || 'unassigned'}
+                              onClick={() => f.floor_id && setFloorId(String(f.floor_id))}
+                              style={{
+                                cursor: f.floor_id ? 'pointer' : 'default',
+                                background: isSelected ? '#dcfce7' : '#ffffff',
+                                border: isSelected ? '1.5px solid #16a34a' : '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                padding: '3px 8px',
+                                fontSize: '0.72rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                              }}
+                              title={f.floor_id ? `Click to choose ${f.floor_name}` : ""}
+                            >
+                              <span style={{ fontWeight: 600, color: '#334155' }}>{f.floor_name}:</span>
+                              <strong style={{ color: f.bags > 0 ? '#15803d' : '#64748b' }}>{f.bags.toLocaleString()} Bags</strong>
+                              {isSelected && <i className="fas fa-check-circle" style={{ color: '#16a34a' }}></i>}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>No floor stock recorded yet.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Multi-Floor Split Table */
+              <div>
+                <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse', background: '#ffffff', borderRadius: '6px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
+                      <th style={{ padding: '6px 8px' }}>Floor Name</th>
+                      <th style={{ padding: '6px 8px' }}>Current Stock</th>
+                      <th style={{ padding: '6px 8px', width: '130px' }}>Inward Bags</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center', width: '80px' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {floors.map(f => {
+                      const curFloorData = floorStockData?.floors?.find(x => x.floor_id === f.id);
+                      const curBags = curFloorData ? curFloorData.bags : 0;
+                      const val = allocMap[f.id] || '';
+                      return (
+                        <tr key={f.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '6px 8px', fontWeight: 600 }}>{f.name}</td>
+                          <td style={{ padding: '6px 8px', color: '#64748b' }}>{curBags.toLocaleString()} bags</td>
+                          <td style={{ padding: '4px 8px' }}>
+                            <input 
+                              type="number"
+                              className="input"
+                              style={{ padding: '4px 6px', fontSize: '0.75rem', height: '28px' }}
+                              value={val}
+                              onChange={e => {
+                                const v = e.target.value;
+                                setAllocMap(prev => ({ ...prev, [f.id]: v }));
+                              }}
+                              min="0"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleFillRemainder(f.id)}
+                              style={{
+                                background: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '4px',
+                                padding: '2px 6px',
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                color: '#0f172a'
+                              }}
+                              title="Assign all remaining bags to this floor"
+                            >
+                              Fill Left
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Allocation balance summary indicator */}
+                <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem' }}>
+                  <div style={{ fontWeight: 700, color: '#334155' }}>
+                    Allocated: <strong>{allocSum}</strong> / Required: <strong>{numBags}</strong> Bags
+                  </div>
+                  {numBags > 0 && (
+                    <div>
+                      {allocSum === numBags ? (
+                        <span style={{ color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <i className="fas fa-check-circle"></i> Exactly Matched ({numBags} Bags)
+                        </span>
+                      ) : allocSum < numBags ? (
+                        <span style={{ color: '#d97706', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <i className="fas fa-info-circle"></i> Need {remainingToAlloc} more bags
+                        </span>
+                      ) : (
+                        <span style={{ color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <i className="fas fa-exclamation-circle"></i> Exceeds by {allocSum - numBags} bags!
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="form-grid" style={{ marginBottom: '1rem' }}>
             
             <div className="form-group">
               <label>Number of Bags</label>

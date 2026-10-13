@@ -700,3 +700,208 @@ def generate_variety_master_pdf(varieties_data):
     buffer.close()
     return pdf_out
 
+
+def generate_floor_stock_pdf(data, generated_by="System"):
+    """
+    Generates a dedicated Floor-Wise Godown Stock Inventory PDF report.
+    Reports every floor, varieties stored on each floor, inward/outward counts, and current balances.
+    """
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    page_width, page_height = A4
+    margin_x = 35
+    content_width = page_width - (margin_x * 2) # ~525 pt
+
+    floor_list = data.get('results', [])
+    grand_total_bags = data.get('grand_total_bags', 0)
+    grand_total_kgs = data.get('grand_total_kgs', 0)
+    now_str = date.today().strftime('%d/%m/%Y')
+
+    def draw_page_decorations(canvas_obj, p_num):
+        canvas_obj.saveState()
+        # Top banner
+        canvas_obj.setFillColor(colors.HexColor('#1e3a8a')) # Deep navy
+        canvas_obj.rect(margin_x, page_height - 65, content_width, 42, fill=True, stroke=False)
+
+        canvas_obj.setFillColor(colors.white)
+        canvas_obj.setFont("Helvetica-Bold", 14)
+        canvas_obj.drawString(margin_x + 12, page_height - 42, "MOTHER INDIA AGRO FOODS")
+
+        canvas_obj.setFont("Helvetica-Bold", 9.5)
+        canvas_obj.drawRightString(margin_x + content_width - 12, page_height - 40, "FLOOR-WISE GODOWN STOCK REPORT")
+
+        canvas_obj.setFont("Helvetica", 7.5)
+        canvas_obj.setFillColor(colors.HexColor('#93c5fd'))
+        canvas_obj.drawString(margin_x + 12, page_height - 56, f"Generated: {now_str}  |  By: {generated_by}")
+        canvas_obj.drawRightString(margin_x + content_width - 12, page_height - 56, "Confidential Inventory Statement")
+
+        # Bottom footer
+        canvas_obj.setStrokeColor(colors.HexColor('#e2e8f0'))
+        canvas_obj.setLineWidth(0.75)
+        canvas_obj.line(margin_x, 28, margin_x + content_width, 28)
+
+        canvas_obj.setFont("Helvetica", 7)
+        canvas_obj.setFillColor(colors.HexColor('#64748b'))
+        canvas_obj.drawString(margin_x, 18, "Mother India Inventory System • Floor-Wise Stock Summary")
+        canvas_obj.drawRightString(margin_x + content_width, 18, f"Page {p_num}")
+        canvas_obj.restoreState()
+
+    page_num = 1
+    draw_page_decorations(c, page_num)
+    cur_y = page_height - 85
+
+    # Overall Summary Highlights Cards
+    c.saveState()
+    c.setFillColor(colors.HexColor('#f8fafc'))
+    c.setStrokeColor(colors.HexColor('#cbd5e1'))
+    c.roundRect(margin_x, cur_y - 28, content_width, 28, 4, fill=True, stroke=True)
+
+    c.setFont("Helvetica-Bold", 8)
+    c.setFillColor(colors.HexColor('#334155'))
+    c.drawString(margin_x + 12, cur_y - 17, f"TOTAL FLOORS: {len(floor_list)}")
+
+    c.setFillColor(colors.HexColor('#059669'))
+    c.drawCentredString(margin_x + (content_width / 2.0), cur_y - 17, f"GRAND TOTAL STOCK: {grand_total_bags:,} Bags")
+
+    c.setFillColor(colors.HexColor('#2563eb'))
+    c.drawRightString(margin_x + content_width - 12, cur_y - 17, f"TOTAL WEIGHT: {grand_total_kgs:,.1f} Kg")
+    c.restoreState()
+
+    cur_y -= 42
+
+    col_widths = [30, 205, 70, 70, 70, 80] # SL, Variety, Kg/Bag, Inward, Outward, Balance
+
+    for fl in floor_list:
+        varieties = fl.get('varieties', [])
+        
+        # Check remaining space on page for floor section
+        needed_height = 35 + (max(len(varieties), 1) * 18) + 20
+        if cur_y < 110:
+            c.showPage()
+            page_num += 1
+            draw_page_decorations(c, page_num)
+            cur_y = page_height - 85
+
+        # Floor Header Bar
+        c.saveState()
+        c.setFillColor(colors.HexColor('#0f172a')) # Dark slate
+        c.rect(margin_x, cur_y - 18, content_width, 18, fill=True, stroke=False)
+
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(margin_x + 8, cur_y - 13, f"FLOOR: {fl.get('floor_name', 'Unknown')}".upper())
+
+        fl_tot_bags = fl.get('total_bags', 0)
+        fl_tot_kgs = fl.get('total_kgs', 0)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawRightString(margin_x + content_width - 8, cur_y - 13, f"Current Floor Stock: {fl_tot_bags:,} Bags ({fl_tot_kgs:,.1f} Kg)")
+        c.restoreState()
+        cur_y -= 18
+
+        # Table Column Headers
+        c.saveState()
+        c.setFillColor(colors.HexColor('#e2e8f0'))
+        c.rect(margin_x, cur_y - 14, content_width, 14, fill=True, stroke=False)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.setFillColor(colors.HexColor('#334155'))
+
+        c.drawCentredString(margin_x + 15, cur_y - 10, "SL")
+        c.drawString(margin_x + col_widths[0] + 5, cur_y - 10, "VARIETY NAME")
+        c.drawCentredString(margin_x + col_widths[0] + col_widths[1] + (col_widths[2]/2), cur_y - 10, "STD WT")
+        c.drawRightString(margin_x + sum(col_widths[:3]) + col_widths[3] - 5, cur_y - 10, "INWARD")
+        c.drawRightString(margin_x + sum(col_widths[:4]) + col_widths[4] - 5, cur_y - 10, "OUTWARD")
+        c.drawRightString(margin_x + sum(col_widths[:5]) + col_widths[5] - 5, cur_y - 10, "AVAILABLE")
+        c.restoreState()
+        cur_y -= 14
+
+        if not varieties:
+            c.saveState()
+            c.setFont("Helvetica-Oblique", 7.5)
+            c.setFillColor(colors.HexColor('#94a3b8'))
+            c.drawCentredString(margin_x + (content_width / 2.0), cur_y - 11, "No stock records stored on this floor.")
+            c.restoreState()
+            cur_y -= 16
+        else:
+            for v_idx, v in enumerate(varieties):
+                if cur_y < 70:
+                    c.showPage()
+                    page_num += 1
+                    draw_page_decorations(c, page_num)
+                    cur_y = page_height - 85
+
+                row_h = 16
+                is_even = (v_idx % 2 == 0)
+
+                c.saveState()
+                # Row background
+                c.setFillColor(colors.HexColor('#ffffff') if is_even else colors.HexColor('#f8fafc'))
+                c.rect(margin_x, cur_y - row_h, content_width, row_h, fill=True, stroke=False)
+
+                # Light bottom border
+                c.setStrokeColor(colors.HexColor('#f1f5f9'))
+                c.setLineWidth(0.5)
+                c.line(margin_x, cur_y - row_h, margin_x + content_width, cur_y - row_h)
+
+                # Text columns
+                c.setFont("Helvetica", 7.5)
+                c.setFillColor(colors.HexColor('#64748b'))
+                c.drawCentredString(margin_x + 15, cur_y - 11, str(v_idx + 1))
+
+                c.setFont("Helvetica-Bold", 7.5)
+                c.setFillColor(colors.HexColor('#0f172a'))
+                c.drawString(margin_x + col_widths[0] + 5, cur_y - 11, str(v.get('variety_name', '-'))[:35])
+
+                c.setFont("Helvetica", 7.5)
+                c.setFillColor(colors.HexColor('#475569'))
+                c.drawCentredString(margin_x + col_widths[0] + col_widths[1] + (col_widths[2]/2), cur_y - 11, f"{v.get('kgs_per_bag', '-')} kg")
+
+                c.drawRightString(margin_x + sum(col_widths[:3]) + col_widths[3] - 5, cur_y - 11, f"{v.get('inward_bags', 0):,}")
+                c.drawRightString(margin_x + sum(col_widths[:4]) + col_widths[4] - 5, cur_y - 11, f"{v.get('outward_bags', 0):,}")
+
+                # Available bags (highlighted)
+                avail_b = v.get('bags', 0)
+                c.setFont("Helvetica-Bold", 8)
+                if avail_b > 0:
+                    c.setFillColor(colors.HexColor('#059669'))
+                elif avail_b < 0:
+                    c.setFillColor(colors.HexColor('#dc2626'))
+                else:
+                    c.setFillColor(colors.HexColor('#64748b'))
+                c.drawRightString(margin_x + sum(col_widths[:5]) + col_widths[5] - 5, cur_y - 11, f"{avail_b:,} Bags")
+
+                c.restoreState()
+                cur_y -= row_h
+
+        # Floor Subtotal line
+        c.saveState()
+        c.setFillColor(colors.HexColor('#f1f5f9'))
+        c.rect(margin_x, cur_y - 15, content_width, 15, fill=True, stroke=False)
+        c.setFont("Helvetica-Bold", 7.5)
+        c.setFillColor(colors.HexColor('#1e293b'))
+        c.drawString(margin_x + 10, cur_y - 11, f"SUBTOTAL — {fl.get('floor_name', '').upper()}:")
+        c.drawRightString(margin_x + content_width - 8, cur_y - 11, f"{fl.get('total_bags', 0):,} Bags  ({fl.get('total_kgs', 0):,.1f} Kg)")
+        c.restoreState()
+        cur_y -= 24
+
+    # Grand Total at the bottom
+    if cur_y < 80:
+        c.showPage()
+        page_num += 1
+        draw_page_decorations(c, page_num)
+        cur_y = page_height - 85
+
+    c.saveState()
+    c.setFillColor(colors.HexColor('#1e3a8a'))
+    c.rect(margin_x, cur_y - 20, content_width, 20, fill=True, stroke=False)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 8.5)
+    c.drawString(margin_x + 12, cur_y - 14, "CENTRAL GODOWN GRAND TOTAL (ALL FLOORS COMBINED):")
+    c.drawRightString(margin_x + content_width - 12, cur_y - 14, f"{grand_total_bags:,} Bags  ({grand_total_kgs:,.1f} Kg)")
+    c.restoreState()
+
+    c.showPage()
+    c.save()
+    pdf_out = buffer.getvalue()
+    buffer.close()
+    return pdf_out
+

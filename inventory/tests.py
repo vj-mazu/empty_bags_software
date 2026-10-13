@@ -7,8 +7,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from inventory.models import UserProfile, Place, Party, Variety, Inward, Outward, Role, ApprovalRequest
-from inventory.pdf import generate_4up_a4_invoice, generate_stocks_summary_pdf, generate_ledger_summary_pdf
+from inventory.models import UserProfile, Place, Party, Variety, Inward, Outward, Role, ApprovalRequest, Floor
+from inventory.pdf import generate_4up_a4_invoice, generate_stocks_summary_pdf, generate_ledger_summary_pdf, generate_floor_stock_pdf
 
 class MotherIndiaMillComprehensiveTestCase(TestCase):
     def setUp(self):
@@ -453,6 +453,148 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
         res_oversell = self.client.post('/api/outward/', oversell_payload, format='json')
         self.assertEqual(res_oversell.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('Insufficient branch stock', str(res_oversell.data['bags'][0]))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 14. TEST MULTI-FLOOR SPLIT INWARD, OUTWARD & FLOOR VALIDATIONS
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_multi_floor_split_inward_and_outward(self):
+        """
+        Verify multi-floor inward split allocation, outward multi-floor split deduction,
+        over-allocation validation, and dedicated floor stock PDF generation.
+        """
+        self.client.force_authenticate(user=self.owner_user)
+
+        # 1. Create floors
+        floor_ground = Floor.objects.create(name='Ground Floor')
+        floor_first = Floor.objects.create(name='1st Floor')
+
+        # 2. Inward 3,000 bags of Sona Masoori split across floors:
+        # Ground: 1,000, 1st: 2,000
+        inward_payload = {
+            'invoice_no': 'INV-FL-001',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 3000,
+            'rate': '1500.00',
+            'floor_allocations': [
+                {'floor_id': floor_ground.id, 'floor_name': floor_ground.name, 'bags': 1000},
+                {'floor_id': floor_first.id, 'floor_name': floor_first.name, 'bags': 2000}
+            ]
+        }
+        res_in = self.client.post('/api/inward/', inward_payload, format='json')
+        self.assertEqual(res_in.status_code, status.HTTP_201_CREATED)
+
+        # 3. Verify Floor Stock endpoint reflects 1,000 on Ground and 2,000 on 1st Floor
+        res_st = self.client.get(f'/api/floor-stock/?variety_id={self.variety_sona.id}')
+        self.assertEqual(res_st.status_code, status.HTTP_200_OK)
+        floors_data = {f['floor_id']: f['bags'] for f in res_st.data['floors']}
+        self.assertEqual(floors_data[floor_ground.id], 1000)
+        self.assertEqual(floors_data[floor_first.id], 2000)
+
+        # 4. Inward with mismatched allocation sum must be rejected
+        mismatch_payload = {
+            'invoice_no': 'INV-FL-BAD',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 1000,
+            'rate': '1500.00',
+            'floor_allocations': [
+                {'floor_id': floor_ground.id, 'bags': 500} # only 500 allocated instead of 1000
+            ]
+        }
+        res_bad = self.client.post('/api/inward/', mismatch_payload, format='json')
+        self.assertEqual(res_bad.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('floor_allocations', res_bad.data)
+
+        # 5. Outward 2,500 bags split across floors:
+        # 1st Floor: 2,000 (all available on 1st), Ground Floor: 500 (from 1,000 available)
+        outward_payload = {
+            'invoice_no': 'OUT-FL-001',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 2500,
+            'rate': '1650.00',
+            'is_transfer': False,
+            'floor_allocations': [
+                {'floor_id': floor_first.id, 'floor_name': floor_first.name, 'bags': 2000},
+                {'floor_id': floor_ground.id, 'floor_name': floor_ground.name, 'bags': 500}
+            ]
+        }
+        res_out = self.client.post('/api/outward/', outward_payload, format='json')
+        self.assertEqual(res_out.status_code, status.HTTP_201_CREATED)
+
+        # 6. Check updated floor stock:
+        # 1st Floor should have 0 bags, Ground Floor should have 500 bags
+        res_st2 = self.client.get(f'/api/floor-stock/?variety_id={self.variety_sona.id}')
+        floors_data2 = {f['floor_id']: f['bags'] for f in res_st2.data['floors']}
+        self.assertEqual(floors_data2[floor_first.id], 0)
+        self.assertEqual(floors_data2[floor_ground.id], 500)
+
+        # 7. Attempting to outward 100 bags from 1st Floor (which now has 0) must be rejected
+        over_out_payload = {
+            'invoice_no': 'OUT-FL-OVER',
+            'date': str(timezone.now().date()),
+            'party': self.party_lakshmi.id,
+            'variety': self.variety_sona.id,
+            'bags': 100,
+            'rate': '1650.00',
+            'is_transfer': False,
+            'floor_allocations': [
+                {'floor_id': floor_first.id, 'floor_name': floor_first.name, 'bags': 100}
+            ]
+        }
+        res_over = self.client.post('/api/outward/', over_out_payload, format='json')
+        self.assertEqual(res_over.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('floor_allocations', res_over.data)
+
+        # 8. Floor Stock PDF export test
+        res_pdf = self.client.get('/api/floor-stock/export-pdf/')
+        self.assertEqual(res_pdf.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_pdf['Content-Type'], 'application/pdf')
+        self.assertTrue(len(res_pdf.content) > 1000)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 9. TEST VARIETY PLACE BAG ORDER (OWNER ONLY)
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_variety_place_order(self):
+        # 1. Staff user attempts to place order -> 403 Forbidden
+        self.client.force_authenticate(user=self.staff_user)
+        payload = {
+            'order_placed': True,
+            'order_date': str(timezone.now().date()),
+            'order_bags': 5000,
+            'order_notes': 'Urgent requirement from supplier'
+        }
+        res_staff = self.client.post(f'/api/varieties/{self.variety_sona.id}/place-order/', payload, format='json')
+        self.assertEqual(res_staff.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 2. Owner user places order -> 200 OK
+        self.client.force_authenticate(user=self.owner_user)
+        res_owner = self.client.post(f'/api/varieties/{self.variety_sona.id}/place-order/', payload, format='json')
+        self.assertEqual(res_owner.status_code, status.HTTP_200_OK)
+        self.assertTrue(res_owner.data['order_placed'])
+        self.assertEqual(res_owner.data['order_bags'], 5000)
+        self.assertEqual(res_owner.data['order_notes'], 'Urgent requirement from supplier')
+
+        # Verify persisted in database
+        self.variety_sona.refresh_from_db()
+        self.assertTrue(self.variety_sona.order_placed)
+        self.assertEqual(self.variety_sona.order_bags, 5000)
+        self.assertEqual(self.variety_sona.order_notes, 'Urgent requirement from supplier')
+
+        # 3. Owner marks order received / cleared
+        clear_payload = {'order_placed': False}
+        res_clear = self.client.post(f'/api/varieties/{self.variety_sona.id}/place-order/', clear_payload, format='json')
+        self.assertEqual(res_clear.status_code, status.HTTP_200_OK)
+        self.assertFalse(res_clear.data['order_placed'])
+
+        self.variety_sona.refresh_from_db()
+        self.assertFalse(self.variety_sona.order_placed)
+
+
 
 
 

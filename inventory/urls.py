@@ -1,17 +1,18 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    UserProfileViewSet, PlaceViewSet, PartyViewSet, VarietyViewSet,
+    UserProfileViewSet, PlaceViewSet, FloorViewSet, PartyViewSet, VarietyViewSet,
     InwardViewSet, OutwardViewSet, LoginAPIView, LogoutAPIView, AuthCheckAPIView,
     SystemAlertsAPIView, EmptyBagsStockLedgerAPIView, VarietyDetailLedgerAPIView,
     InwardInvoicePDFView, OutwardInvoicePDFView, ApprovalRequestViewSet,
     ExportStocksPDFView, ExportLedgerPDFView, DashboardAPIView, StocksTodayAPIView,
-    PlaceStockLedgerAPIView, VarietyMasterPDFView
+    PlaceStockLedgerAPIView, VarietyMasterPDFView, FloorStockAPIView, FloorStockPdfView
 )
 
 router = DefaultRouter()
 router.register(r'users', UserProfileViewSet, basename='userprofile')
 router.register(r'places', PlaceViewSet, basename='place')
+router.register(r'floors', FloorViewSet, basename='floor')
 router.register(r'parties', PartyViewSet, basename='party')
 router.register(r'varieties', VarietyViewSet, basename='variety')
 router.register(r'inward', InwardViewSet, basename='inward')
@@ -27,6 +28,8 @@ urlpatterns = [
     path('alerts/', SystemAlertsAPIView.as_view(), name='api-alerts'),
     path('empty-bags-ledger/', EmptyBagsStockLedgerAPIView.as_view(), name='api-empty-bags-ledger'),
     path('place-ledger/', PlaceStockLedgerAPIView.as_view(), name='api-place-ledger'),
+    path('floor-stock/', FloorStockAPIView.as_view(), name='floor-stock'),
+    path('floor-stock/export-pdf/', FloorStockPdfView.as_view(), name='floor-stock-pdf'),
     path('variety-ledger/<int:variety_id>/', VarietyDetailLedgerAPIView.as_view(), name='api-variety-ledger'),
     path('varieties/export-pdf/', VarietyMasterPDFView.as_view(), name='varieties-export-pdf'),
     path('stocks/export-pdf/', ExportStocksPDFView.as_view(), name='stocks-export-pdf'),

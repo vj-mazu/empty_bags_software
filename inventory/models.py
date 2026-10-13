@@ -30,6 +30,17 @@ class Place(models.Model):
     def __str__(self):
         return self.name
 
+class Floor(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
 class Party(models.Model):
     name = models.CharField(max_length=150, unique=True)
     shortcut_name = models.CharField(max_length=50, blank=True, null=True)
@@ -53,6 +64,10 @@ class Variety(models.Model):
     photo = models.ImageField(upload_to=variety_photo_upload_path, max_length=500, blank=True, null=True)
     photo_data = models.TextField(blank=True, null=True, help_text="Base64 image data for permanent cloud database storage")
     kgs_per_bag = models.DecimalField(max_digits=8, decimal_places=2, help_text="Mandatory standard Kgs per bag")
+    order_placed = models.BooleanField(default=False, help_text="True if empty bags order has been placed by owner")
+    order_date = models.DateField(null=True, blank=True, help_text="Date when bag order was placed")
+    order_bags = models.PositiveIntegerField(null=True, blank=True, help_text="Number of empty bags ordered")
+    order_notes = models.CharField(max_length=255, blank=True, null=True, help_text="Supplier, printer, or order notes")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -68,6 +83,8 @@ class Inward(models.Model):
     date = models.DateField(default=timezone.now)
     party = models.ForeignKey(Party, on_delete=models.PROTECT, related_name='inwards')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='inwards')
+    floor = models.ForeignKey(Floor, on_delete=models.SET_NULL, null=True, blank=True, related_name='inwards')
+    floor_allocations = models.JSONField(default=list, blank=True, null=True, help_text="Multi-floor allocation list")
     rate = models.DecimalField(max_digits=10, decimal_places=2)
     bags = models.PositiveIntegerField()
     total_kgs = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), editable=False)
@@ -118,6 +135,8 @@ class Outward(models.Model):
     date = models.DateField(default=timezone.now)
     party = models.ForeignKey(Party, on_delete=models.PROTECT, related_name='outwards')
     variety = models.ForeignKey(Variety, on_delete=models.PROTECT, related_name='outwards')
+    floor = models.ForeignKey(Floor, on_delete=models.SET_NULL, null=True, blank=True, related_name='outwards')
+    floor_allocations = models.JSONField(default=list, blank=True, null=True, help_text="Multi-floor allocation list")
     rate = models.DecimalField(max_digits=10, decimal_places=2)
     bags = models.PositiveIntegerField()
     total_kgs = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), editable=False)
@@ -212,3 +231,45 @@ class ApprovalRequest(models.Model):
 
     def __str__(self):
         return f"{self.action_type} Request on {self.target_model} #{self.target_id} by {self.requested_by.username} ({self.status})"
+
+
+def calculate_floor_stock(floor_id, variety=None, exclude_outward_id=None):
+    """
+    Calculates live available bags on a specific floor (or unassigned if floor_id is None).
+    Accurately supports both single-floor records and multi-floor split allocations.
+    """
+    in_qs = Inward.objects.all()
+    out_qs = Outward.objects.filter(from_place__isnull=True)
+
+    if variety:
+        if isinstance(variety, int) or isinstance(variety, str):
+            in_qs = in_qs.filter(variety_id=variety)
+            out_qs = out_qs.filter(variety_id=variety)
+        else:
+            in_qs = in_qs.filter(variety=variety)
+            out_qs = out_qs.filter(variety=variety)
+
+    if exclude_outward_id:
+        out_qs = out_qs.exclude(id=exclude_outward_id)
+
+    tot_in = 0
+    for inward in in_qs.only('bags', 'floor_id', 'floor_allocations'):
+        allocs = inward.floor_allocations
+        if allocs and isinstance(allocs, list) and len(allocs) > 0:
+            for item in allocs:
+                if str(item.get('floor_id')) == str(floor_id):
+                    tot_in += int(item.get('bags', 0) or 0)
+        elif str(inward.floor_id) == str(floor_id):
+            tot_in += inward.bags
+
+    tot_out = 0
+    for outward in out_qs.only('bags', 'floor_id', 'floor_allocations'):
+        allocs = outward.floor_allocations
+        if allocs and isinstance(allocs, list) and len(allocs) > 0:
+            for item in allocs:
+                if str(item.get('floor_id')) == str(floor_id):
+                    tot_out += int(item.get('bags', 0) or 0)
+        elif str(outward.floor_id) == str(floor_id):
+            tot_out += outward.bags
+
+    return tot_in - tot_out
