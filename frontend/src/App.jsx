@@ -67,10 +67,16 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const checkLowStock = () => {
+      let mutedIds = [];
+      try {
+        mutedIds = JSON.parse(localStorage.getItem('mother_india_muted_alerts') || '[]');
+      } catch (e) {}
+
       getVarieties().then(res => {
         const list = res.results || res.data || res;
         if (Array.isArray(list)) {
           list.forEach(v => {
+            if (mutedIds.includes(v.id)) return;
             const bags = parseInt(v.current_stock_bags || 0, 10);
             if (bags < 2000) {
               showToast(`Low Stock Alert: ${v.name} has only ${bags.toLocaleString()} bags remaining!`, 'error', 5000);

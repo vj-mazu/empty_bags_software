@@ -8,8 +8,14 @@ export default function Navbar({ activeTab, setActiveTab, onSelectMaster, user, 
   useEffect(() => {
     getAlerts()
       .then(data => {
-        const count = (data.low_stock_alerts?.length || 0) + (data.aging_stock_alerts?.length || 0);
-        setLocalAlertCount(count);
+        let mutedIds = [];
+        try {
+          mutedIds = JSON.parse(localStorage.getItem('mother_india_muted_alerts') || '[]');
+        } catch (e) {}
+
+        const lowCount = (data.low_stock_alerts || []).filter(a => !mutedIds.includes(a.variety_id)).length;
+        const agingCount = (data.aging_stock_alerts?.length || 0);
+        setLocalAlertCount(lowCount + agingCount);
       })
       .catch(err => console.error('Failed to fetch alerts', err));
   }, []);

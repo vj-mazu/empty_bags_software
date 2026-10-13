@@ -454,6 +454,17 @@ tr:hover td {
   max-width: 150px;
 }
 
+/* Highlighted / Pinned Variety Row (Lite Yellow) */
+tr.variety-highlighted-row td {
+  background-color: #fef9c3 !important; /* Soft Lite Yellow */
+  border-top-color: #fde047 !important;
+  border-bottom-color: #fde047 !important;
+}
+
+tr.variety-highlighted-row:hover td {
+  background-color: #fef08a !important; /* Slightly richer yellow on hover */
+}
+
 /* ─── SEGMENTED VIEW CONTROLS (REGISTER SWITCHERS) ─── */
 .view-switcher-bar {
   display: inline-flex;

@@ -48,6 +48,26 @@ export default function VarietyDetailModal({ varietyId, onClose, initialFilters 
     setLoading(false);
   };
 
+  const handleApplyFilter = () => {
+    fetchDetail();
+  };
+
+  const handleClearFilter = () => {
+    setStartDate('');
+    setEndDate('');
+    setMonth('');
+    setInvoiceNo('');
+    setTypeFilter('all');
+    setLoading(true);
+    getVarietyLedger(varietyId, {}).then(res => {
+      setData(res);
+      setLoading(false);
+    }).catch(err => {
+      console.error(err);
+      setLoading(false);
+    });
+  };
+
   const handleDeleteTransaction = (t) => {
     if (!isOwner) return;
 

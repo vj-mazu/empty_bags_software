@@ -45,9 +45,31 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const [placeForm, setPlaceForm] = useState({ name: '' });
   const [partyForm, setPartyForm] = useState({ name: '', shortcut_name: '', phone_number: '', place: '' });
   const [varietyForm, setVarietyForm] = useState({ name: '', kgs_per_bag: '', photo: null });
-  const [previewPhoto, setPreviewPhoto] = useState(null);
-
   const [phoneError, setPhoneError] = useState('');
+
+  // Highlighted / Pinned Varieties
+  const [highlightedVarietyIds, setHighlightedVarietyIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mother_india_highlighted_varieties') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const toggleHighlightVariety = (id) => {
+    setHighlightedVarietyIds(prev => {
+      let updated;
+      if (prev.includes(id)) {
+        updated = prev.filter(vId => vId !== id);
+      } else {
+        updated = [...prev, id];
+      }
+      try {
+        localStorage.setItem('mother_india_highlighted_varieties', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
 
   useEffect(() => {
     loadAllData();
@@ -369,9 +391,15 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const filteredParties = parties.filter(p => 
     !q || p.name?.toLowerCase().includes(q) || p.shortcut_name?.toLowerCase().includes(q) || p.phone_number?.includes(q) || p.place_name?.toLowerCase().includes(q)
   );
-  const filteredVarieties = varieties.filter(v => 
-    !q || v.name?.toLowerCase().includes(q) || String(v.kgs_per_bag).includes(q)
-  );
+  const filteredVarieties = varieties
+    .filter(v => !q || v.name?.toLowerCase().includes(q) || String(v.kgs_per_bag).includes(q))
+    .sort((a, b) => {
+      const aHigh = highlightedVarietyIds.includes(a.id);
+      const bHigh = highlightedVarietyIds.includes(b.id);
+      if (aHigh && !bHigh) return -1;
+      if (!aHigh && bHigh) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
   const filteredPlaces = places.filter(p => 
     !q || p.name?.toLowerCase().includes(q)
   );
@@ -542,66 +570,116 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                 </tr>
               </thead>
               <tbody>
-                {filteredVarieties.map((v, idx) => (
-                  <tr key={v.id}>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>{idx + 1}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      {(v.photo_url || v.photo_data || v.photo) ? (
-                        <div 
-                          onClick={() => setPreviewPhoto({ src: v.photo_url || v.photo_data || v.photo, name: v.name, kgs: v.kgs_per_bag })}
-                          style={{ cursor: 'pointer', display: 'inline-block', position: 'relative' }}
-                          title="Click to view full photo"
-                        >
-                          <img 
-                            src={v.photo_url || v.photo_data || v.photo} 
-                            alt={v.name} 
-                            className="thumb" 
-                            style={{ 
-                              width: '38px', 
-                              height: '38px', 
-                              objectFit: 'cover', 
-                              borderRadius: '6px', 
-                              border: '1.5px solid #cbd5e1',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                            }} 
-                          />
-                        </div>
-                      ) : (
-                        <div className="thumb" style={{ width: '38px', height: '38px', background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
-                          <i className="fas fa-image" style={{ color: '#cbd5e1' }}></i>
-                        </div>
-                      )}
-                    </td>
-                    <td style={{ fontWeight: 700, color: '#0f172a' }}>{v.name}</td>
-                    <td style={{ fontWeight: 600, color: '#2563eb' }}>{v.kgs_per_bag} kg</td>
-                    <td style={{ fontWeight: 700, color: (v.current_stock_bags || 0) < 2000 ? '#ef4444' : '#059669' }}>
-                      {(v.current_stock_bags || 0).toLocaleString()} Bags
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                        <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditVarietyClick(v)}>
-                          <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
-                        </button>
-                        {user?.role === 'OWNER' ? (
-                          <button 
-                            className="btn btn-ghost btn-sm" 
-                            title={v.can_delete ? "Delete Variety" : "Force Delete Variety & Stock"} 
-                            onClick={() => handleDeleteVariety(v)}
-                            style={{ color: '#ef4444' }}
+                {filteredVarieties.map((v, idx) => {
+                  const isHighlighted = highlightedVarietyIds.includes(v.id);
+                  return (
+                    <tr 
+                      key={v.id}
+                      className={isHighlighted ? 'variety-highlighted-row' : ''}
+                      style={{
+                        borderLeft: isHighlighted ? '4px solid #eab308' : '4px solid transparent'
+                      }}
+                    >
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleHighlightVariety(v.id)}
+                            title={isHighlighted ? "Remove highlight" : "Highlight and pin to top"}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              color: isHighlighted ? '#f59e0b' : '#cbd5e1',
+                              fontSize: '0.95rem'
+                            }}
                           >
-                            <i className="fas fa-trash"></i>
+                            <i className={isHighlighted ? "fas fa-star" : "far fa-star"}></i>
                           </button>
+                          <span>{idx + 1}</span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {(v.photo_url || v.photo_data || v.photo) ? (
+                          <div 
+                            onClick={() => setPreviewPhoto({ src: v.photo_url || v.photo_data || v.photo, name: v.name, kgs: v.kgs_per_bag })}
+                            style={{ cursor: 'pointer', display: 'inline-block', position: 'relative' }}
+                            title="Click to view full photo"
+                          >
+                            <img 
+                              src={v.photo_url || v.photo_data || v.photo} 
+                              alt={v.name} 
+                              className="thumb" 
+                              style={{ 
+                                width: '38px', 
+                                height: '38px', 
+                                objectFit: 'cover', 
+                                borderRadius: '6px', 
+                                border: isHighlighted ? '2px solid #f59e0b' : '1.5px solid #cbd5e1',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                              }} 
+                            />
+                          </div>
                         ) : (
-                          v.can_delete ? null : (
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
-                              <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
-                            </span>
-                          )
+                          <div className="thumb" style={{ width: '38px', height: '38px', background: '#f1f5f9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>
+                            <i className="fas fa-image" style={{ color: '#cbd5e1' }}></i>
+                          </div>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span>{v.name}</span>
+                          {isHighlighted && (
+                            <span 
+                              style={{ 
+                                fontSize: '0.68rem', 
+                                background: '#fef3c7', 
+                                color: '#b45309', 
+                                border: '1px solid #fde68a', 
+                                padding: '1px 6px', 
+                                borderRadius: '999px', 
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                            >
+                              <i className="fas fa-star" style={{ fontSize: '0.6rem' }}></i> Priority
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#2563eb' }}>{v.kgs_per_bag} kg</td>
+                      <td style={{ fontWeight: 700, color: (v.current_stock_bags || 0) < 2000 ? '#ef4444' : '#059669' }}>
+                        {(v.current_stock_bags || 0).toLocaleString()} Bags
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                          <button className="btn btn-ghost btn-sm" title="Edit" onClick={() => handleEditVarietyClick(v)}>
+                            <i className="fas fa-pen-to-square" style={{ color: '#2563eb' }}></i> Edit
+                          </button>
+                          {user?.role === 'OWNER' ? (
+                            <button 
+                              className="btn btn-ghost btn-sm" 
+                              title={v.can_delete ? "Delete Variety" : "Force Delete Variety & Stock"} 
+                              onClick={() => handleDeleteVariety(v)}
+                              style={{ color: '#ef4444' }}
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          ) : (
+                            v.can_delete ? null : (
+                              <span style={{ fontSize: '0.7rem', color: '#94a3b8', padding: '0.2rem' }}>
+                                <i className="fas fa-lock" style={{ marginRight: '2px' }}></i> Active
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredVarieties.length === 0 && (
                   <tr><td colSpan="6" style={{ textAlign: 'center', color: '#64748b', padding: '1.5rem' }}>No varieties found matching criteria.</td></tr>
                 )}
