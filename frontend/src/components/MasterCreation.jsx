@@ -45,6 +45,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
   const [placeForm, setPlaceForm] = useState({ name: '' });
   const [partyForm, setPartyForm] = useState({ name: '', shortcut_name: '', phone_number: '', place: '' });
   const [varietyForm, setVarietyForm] = useState({ name: '', kgs_per_bag: '', photo: null });
+  const [previewPhoto, setPreviewPhoto] = useState(null);
   const [phoneError, setPhoneError] = useState('');
 
   // Highlighted / Pinned Varieties
