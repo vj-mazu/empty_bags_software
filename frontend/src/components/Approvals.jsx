@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getApprovals, approveRequest, rejectRequest, getParties, getVarieties } from '../api';
+import { getApprovals, approveRequest, rejectRequest, getParties, getVarieties, getFloors } from '../api';
 import CustomConfirmModal from './CustomConfirmModal';
 import { formatDate, formatINR, formatBags } from '../utils/formatters';
 
@@ -8,6 +8,7 @@ const Approvals = ({ showToast }) => {
   const [loading, setLoading] = useState(false);
   const [parties, setParties] = useState([]);
   const [varieties, setVarieties] = useState([]);
+  const [floors, setFloors] = useState([]);
 
   // Custom confirmation state
   const [confirmState, setConfirmState] = useState({
@@ -24,9 +25,10 @@ const Approvals = ({ showToast }) => {
     const init = async () => {
       setLoading(true);
       try {
-        const [pRes, vRes] = await Promise.all([getParties(), getVarieties()]);
+        const [pRes, vRes, fRes] = await Promise.all([getParties(), getVarieties(), getFloors()]);
         setParties(pRes.results || pRes.data || pRes || []);
         setVarieties(vRes.results || vRes.data || vRes || []);
+        setFloors(fRes.results || fRes.data || fRes || []);
       } catch (e) {
         console.error("Failed loading metadata for approvals view", e);
       }
@@ -104,6 +106,16 @@ const Approvals = ({ showToast }) => {
     if (k === 'variety') {
       const found = varieties.find(varObj => String(varObj.id) === String(v));
       return found ? found.name : v;
+    }
+    if (k === 'floor') {
+      const found = floors.find(f => String(f.id) === String(v));
+      return found ? found.name : (v ? `Floor #${v}` : 'Unassigned');
+    }
+    if (k === 'floor_allocations') {
+      if (Array.isArray(v) && v.length > 0) {
+        return v.map(item => `${item.floor_name || ('Floor #' + item.floor_id)}: ${formatBags(item.bags)}`).join(' • ');
+      }
+      return 'None';
     }
     if (k === 'lf_toggle') {
       return v ? 'Yes' : 'No';

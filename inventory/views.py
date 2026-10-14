@@ -1112,9 +1112,11 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
                     inward = Inward.objects.get(pk=target_id)
                     for field, value in proposed_data.items():
                         if field == 'party':
-                            inward.party = Party.objects.get(pk=value)
+                            inward.party = Party.objects.filter(pk=value).first() if value else None
                         elif field == 'variety':
-                            inward.variety = Variety.objects.get(pk=value)
+                            inward.variety = Variety.objects.filter(pk=value).first() if value else None
+                        elif field == 'floor':
+                            inward.floor = Floor.objects.filter(pk=value).first() if value else None
                         else:
                             setattr(inward, field, value)
                     inward.save()
@@ -1125,13 +1127,15 @@ class ApprovalRequestViewSet(viewsets.ModelViewSet):
                     outward = Outward.objects.get(pk=target_id)
                     for field, value in proposed_data.items():
                         if field == 'party':
-                            outward.party = Party.objects.get(pk=value)
+                            outward.party = Party.objects.filter(pk=value).first() if value else None
                         elif field == 'variety':
-                            outward.variety = Variety.objects.get(pk=value)
+                            outward.variety = Variety.objects.filter(pk=value).first() if value else None
+                        elif field == 'floor':
+                            outward.floor = Floor.objects.filter(pk=value).first() if value else None
                         elif field == 'from_place':
-                            outward.from_place = Place.objects.get(pk=value) if value else None
+                            outward.from_place = Place.objects.filter(pk=value).first() if value else None
                         elif field == 'to_place':
-                            outward.to_place = Place.objects.get(pk=value) if value else None
+                            outward.to_place = Place.objects.filter(pk=value).first() if value else None
                         else:
                             setattr(outward, field, value)
                     outward.save()

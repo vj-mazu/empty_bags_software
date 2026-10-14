@@ -327,7 +327,9 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
             created_by=self.staff_user
         )
 
-        # 1. Staff creates approval request to change bags from 100 to 120 and rate to 1100
+        floor_test = Floor.objects.create(name='Approval Test Floor')
+
+        # 1. Staff creates approval request to change bags from 100 to 120, rate to 1100, and assign floor
         self.client.force_authenticate(user=self.staff_user)
         req_payload = {
             'action_type': 'EDIT',
@@ -338,6 +340,8 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
                 'rate': 1100.00,
                 'party': self.party_lakshmi.id,
                 'variety': self.variety_sona.id,
+                'floor': floor_test.id,
+                'floor_allocations': [{'floor_id': floor_test.id, 'floor_name': floor_test.name, 'bags': 120}]
             }
         }
         create_res = self.client.post('/api/approvals/', req_payload, format='json')
@@ -349,10 +353,12 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
         approve_res = self.client.post(f'/api/approvals/{app_id}/approve/')
         self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
 
-        # 3. Verify inward was updated and values recalculated
+        # 3. Verify inward was updated, floor assigned, and values recalculated
         inward.refresh_from_db()
         self.assertEqual(inward.bags, 120)
         self.assertEqual(inward.rate, Decimal('1100.00'))
+        self.assertEqual(inward.floor, floor_test)
+        self.assertEqual(inward.floor_allocations, [{'floor_id': floor_test.id, 'floor_name': floor_test.name, 'bags': 120}])
         self.assertEqual(inward.total_kgs, Decimal('6000.00')) # 120 * 50kg
         self.assertEqual(inward.total_value, Decimal('132000.00')) # 120 * 1100
 
