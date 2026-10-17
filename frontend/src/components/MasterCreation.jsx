@@ -726,13 +726,15 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
             <table>
               <thead>
                 <tr>
-                  <th style={{ width: '6%', textAlign: 'center' }}>SL</th>
-                  <th style={{ width: '7%', textAlign: 'center' }}>Photo</th>
-                  <th style={{ width: '27%' }}>Variety Name</th>
-                  <th style={{ width: '15%' }}>Standard Weight (Kg/Bag)</th>
-                  <th style={{ width: '15%' }}>Stock Position</th>
-                  <th style={{ width: '18%' }}>Bag Order Status</th>
-                  <th style={{ width: '12%', textAlign: 'center' }}>Actions</th>
+                  <th style={{ width: '5%', textAlign: 'center' }}>SL</th>
+                  <th style={{ width: '6%', textAlign: 'center' }}>Photo</th>
+                  <th style={{ width: '22%' }}>Variety Name</th>
+                  <th style={{ width: '10%' }}>Std Wt (Kg)</th>
+                  <th style={{ width: '14%' }}>Our Mill Stock</th>
+                  <th style={{ width: '14%' }}>Other Mills' Stock</th>
+                  <th style={{ width: '11%' }}>Total Stock</th>
+                  <th style={{ width: '11%' }}>Bag Order Status</th>
+                  <th style={{ width: '7%', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -880,9 +882,63 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                         </div>
                       </td>
                       <td style={{ fontWeight: 600, color: '#2563eb' }}>{v.kgs_per_bag} kg</td>
-                      <td style={{ fontWeight: 700, color: (v.current_stock_bags || 0) < 2000 ? '#ef4444' : '#059669' }}>
-                        {(v.current_stock_bags || 0).toLocaleString()} Bags
+
+                      {/* 1. Our Mill Stock */}
+                      <td style={{ fontWeight: 700, color: (v.our_mill_stock_bags ?? v.current_stock_bags ?? 0) < 2000 ? '#ef4444' : '#059669' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span>{(v.our_mill_stock_bags ?? v.current_stock_bags ?? 0).toLocaleString()} Bags</span>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>
+                            {((v.our_mill_stock_bags ?? v.current_stock_bags ?? 0) * Number(v.kgs_per_bag || 0)).toLocaleString()} kg
+                          </span>
+                        </div>
                       </td>
+
+                      {/* 2. Other Mills' Stock */}
+                      <td>
+                        {(v.other_places_stock_bags || 0) > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ color: '#0284c7', fontWeight: 700 }}>
+                              {Number(v.other_places_stock_bags).toLocaleString()} Bags
+                            </span>
+                            {v.other_places_breakdown && v.other_places_breakdown.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                {v.other_places_breakdown.map((p, pIdx) => (
+                                  <span 
+                                    key={p.place_id || pIdx} 
+                                    style={{ 
+                                      fontSize: '0.64rem', 
+                                      background: '#f0f9ff', 
+                                      color: '#0369a1', 
+                                      border: '1px solid #bae6fd', 
+                                      padding: '1px 5px', 
+                                      borderRadius: '4px',
+                                      fontWeight: 600
+                                    }}
+                                    title={`${p.place_name}: ${p.bags.toLocaleString()} Bags`}
+                                  >
+                                    {p.place_name}: <strong>{p.bags.toLocaleString()}</strong>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: '0.74rem' }}>0 Bags</span>
+                        )}
+                      </td>
+
+                      {/* 3. Total Stock */}
+                      <td style={{ fontWeight: 700 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ color: '#0f172a' }}>
+                            {(v.current_stock_bags || 0).toLocaleString()} Bags
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 500 }}>
+                            {((v.current_stock_bags || 0) * Number(v.kgs_per_bag || 0)).toLocaleString()} kg
+                          </span>
+                        </div>
+                      </td>
+
                       <td>
                         {v.order_placed ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -928,7 +984,7 @@ const MasterCreation = ({ user, activeSection, showToast }) => {
                           </div>
                         ) : (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            {(v.current_stock_bags || 0) < 2000 ? (
+                            {(v.our_mill_stock_bags ?? v.current_stock_bags ?? 0) < 2000 ? (
                               <span style={{ fontSize: '0.7rem', color: '#ea580c', fontWeight: 700, background: '#fff7ed', border: '1px solid #ffedd5', padding: '2px 6px', borderRadius: '4px' }}>
                                 <i className="fas fa-triangle-exclamation" style={{ marginRight: '3px' }}></i> Low (Not Ordered)
                               </span>

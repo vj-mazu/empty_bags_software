@@ -68,6 +68,11 @@ class PartySerializer(serializers.ModelSerializer):
 class VarietySerializer(serializers.ModelSerializer):
     current_stock_bags = serializers.SerializerMethodField()
     current_stock_kgs = serializers.SerializerMethodField()
+    our_mill_stock_bags = serializers.SerializerMethodField()
+    our_mill_stock_kgs = serializers.SerializerMethodField()
+    other_places_stock_bags = serializers.SerializerMethodField()
+    other_places_stock_kgs = serializers.SerializerMethodField()
+    other_places_breakdown = serializers.SerializerMethodField()
     can_delete = serializers.SerializerMethodField()
     photo_url = serializers.SerializerMethodField()
 
@@ -76,7 +81,10 @@ class VarietySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'photo', 'photo_data', 'photo_url', 'kgs_per_bag',
             'order_placed', 'order_date', 'order_bags', 'order_notes',
-            'created_at', 'current_stock_bags', 'current_stock_kgs', 'can_delete'
+            'created_at', 'current_stock_bags', 'current_stock_kgs',
+            'our_mill_stock_bags', 'our_mill_stock_kgs',
+            'other_places_stock_bags', 'other_places_stock_kgs',
+            'other_places_breakdown', 'can_delete'
         ]
 
     def get_photo_url(self, obj):
@@ -89,13 +97,48 @@ class VarietySerializer(serializers.ModelSerializer):
                 return None
         return None
 
+    def get_our_mill_stock_bags(self, obj):
+        if hasattr(obj, '_our_mill_bags'):
+            return obj._our_mill_bags or 0
+        in_b = Inward.objects.filter(variety=obj).aggregate(Sum('bags'))['bags__sum'] or 0
+        mill_out_b = Outward.objects.filter(variety=obj, from_place__isnull=True).aggregate(Sum('bags'))['bags__sum'] or 0
+        return in_b - mill_out_b
+
+    def get_our_mill_stock_kgs(self, obj):
+        return float(self.get_our_mill_stock_bags(obj)) * float(obj.kgs_per_bag)
+
+    def get_other_places_stock_bags(self, obj):
+        if hasattr(obj, '_other_places_bags'):
+            return obj._other_places_bags or 0
+        tr_in = Outward.objects.filter(variety=obj, is_transfer=True, to_place__isnull=False).aggregate(Sum('bags'))['bags__sum'] or 0
+        tr_out = Outward.objects.filter(variety=obj, from_place__isnull=False).aggregate(Sum('bags'))['bags__sum'] or 0
+        return max(0, tr_in - tr_out)
+
+    def get_other_places_stock_kgs(self, obj):
+        return float(self.get_other_places_stock_bags(obj)) * float(obj.kgs_per_bag)
+
+    def get_other_places_breakdown(self, obj):
+        if hasattr(obj, '_other_places_breakdown'):
+            return obj._other_places_breakdown or []
+        tr_qs = Outward.objects.filter(variety=obj, is_transfer=True, to_place__isnull=False).values('to_place_id', 'to_place__name').annotate(s=Sum('bags'))
+        out_qs = Outward.objects.filter(variety=obj, from_place__isnull=False).values('from_place_id').annotate(s=Sum('bags'))
+        out_map = {item['from_place_id']: (item['s'] or 0) for item in out_qs}
+        breakdown = []
+        for item in tr_qs:
+            pid = item['to_place_id']
+            pname = item['to_place__name'] or f"Place #{pid}"
+            bal = (item['s'] or 0) - out_map.get(pid, 0)
+            if bal > 0:
+                breakdown.append({'place_id': pid, 'place_name': pname, 'bags': bal})
+        return breakdown
+
     def get_current_stock_bags(self, obj):
-        # Use prefetched annotation if available (set by view), otherwise single query
+        # Use prefetched annotation if available (set by view), otherwise fallback
+        if hasattr(obj, '_total_stock_bags'):
+            return obj._total_stock_bags or 0
         if hasattr(obj, '_in_bags') and hasattr(obj, '_out_bags'):
             return (obj._in_bags or 0) - (obj._out_bags or 0)
-        in_bags = Inward.objects.filter(variety=obj).aggregate(Sum('bags'))['bags__sum'] or 0
-        out_bags = Outward.objects.filter(variety=obj).aggregate(Sum('bags'))['bags__sum'] or 0
-        return in_bags - out_bags
+        return self.get_our_mill_stock_bags(obj) + self.get_other_places_stock_bags(obj)
 
     def get_current_stock_kgs(self, obj):
         stock_bags = self.get_current_stock_bags(obj)

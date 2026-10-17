@@ -30,17 +30,50 @@ def get_current_business_date():
 
 # ─── Performance Helper: bulk-annotate varieties with stock counts ───────────
 def _annotate_varieties(qs):
-    """Annotate a Variety queryset with inward/outward bag counts and related
-counts so serializers never need N+1 queries.
+    """Annotate a Variety queryset with inward/outward bag counts, separate our mill
+    vs other places (branch mills) counts, and related counts so serializers never need N+1 queries.
 
-Uses single LEFT JOIN aggregations instead of correlated subqueries
-for O(1) performance even with 10M+ records."""
+    Uses single LEFT JOIN aggregations instead of correlated subqueries
+    for O(1) performance even with 10M+ records."""
     in_agg = Inward.objects.values('variety_id').annotate(s=Sum('bags')).values('variety_id', 's')
     out_agg = Outward.objects.values('variety_id').annotate(s=Sum('bags')).values('variety_id', 's')
 
+    # Mother India Mill outward (from_place is null)
+    mill_out_agg = Outward.objects.filter(from_place__isnull=True).values('variety_id').annotate(s=Sum('bags')).values('variety_id', 's')
+
+    # Inter-branch transfers received at other places
+    transfers_in_agg = Outward.objects.filter(is_transfer=True, to_place__isnull=False).values(
+        'variety_id', 'to_place_id', 'to_place__name'
+    ).annotate(s=Sum('bags'))
+
+    # Dispatches originating from other places
+    branch_out_agg = Outward.objects.filter(from_place__isnull=False).values(
+        'variety_id', 'from_place_id'
+    ).annotate(s=Sum('bags'))
+
     # Build lookup dicts (single query each)
-    in_map = {item['variety_id']: item['s'] for item in in_agg}
-    out_map = {item['variety_id']: item['s'] for item in out_agg}
+    in_map = {item['variety_id']: (item['s'] or 0) for item in in_agg}
+    out_map = {item['variety_id']: (item['s'] or 0) for item in out_agg}
+    mill_out_map = {item['variety_id']: (item['s'] or 0) for item in mill_out_agg}
+
+    # Build place breakdown per variety
+    place_breakdown_map = {}
+    for item in transfers_in_agg:
+        vid = item['variety_id']
+        pid = item['to_place_id']
+        pname = item['to_place__name'] or f"Branch #{pid}"
+        if vid not in place_breakdown_map:
+            place_breakdown_map[vid] = {}
+        if pid not in place_breakdown_map[vid]:
+            place_breakdown_map[vid][pid] = {'place_id': pid, 'place_name': pname, 'bags': 0}
+        place_breakdown_map[vid][pid]['bags'] += (item['s'] or 0)
+
+    for item in branch_out_agg:
+        vid = item['variety_id']
+        pid = item['from_place_id']
+        if vid in place_breakdown_map and pid in place_breakdown_map[vid]:
+            place_breakdown_map[vid][pid]['bags'] -= (item['s'] or 0)
+
     in_count_map = {}
     out_count_map = {}
 
@@ -52,8 +85,22 @@ for O(1) performance even with 10M+ records."""
 
     # Annotate in-memory (no N+1, no subqueries)
     for v in qs:
-        v._in_bags = in_map.get(v.id, 0) or 0
-        v._out_bags = out_map.get(v.id, 0) or 0
+        in_b = in_map.get(v.id, 0)
+        mill_out_b = mill_out_map.get(v.id, 0)
+        our_mill_b = in_b - mill_out_b
+
+        v_places = place_breakdown_map.get(v.id, {})
+        valid_places_list = [p for p in v_places.values() if p['bags'] > 0]
+        other_places_b = sum(p['bags'] for p in valid_places_list)
+
+        total_b = our_mill_b + other_places_b
+
+        v._in_bags = in_b
+        v._out_bags = out_map.get(v.id, 0)
+        v._our_mill_bags = our_mill_b
+        v._other_places_bags = other_places_b
+        v._other_places_breakdown = valid_places_list
+        v._total_stock_bags = total_b
         v._inward_count = in_count_map.get(v.id, 0)
         v._outward_count = out_count_map.get(v.id, 0)
 

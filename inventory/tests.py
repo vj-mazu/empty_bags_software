@@ -600,6 +600,75 @@ class MotherIndiaMillComprehensiveTestCase(TestCase):
         self.variety_sona.refresh_from_db()
         self.assertFalse(self.variety_sona.order_placed)
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # 10. TEST OUR MILL STOCK VS OTHER PLACES (BRANCHES) STOCK BREAKDOWN
+    # ─────────────────────────────────────────────────────────────────────────
+    def test_variety_our_mill_vs_other_places_stock(self):
+        """
+        Verify that stock is accurately split between:
+        1. Our mill stock (physical godown)
+        2. Other places stock (transfers sent to branch locations)
+        3. Total stock (sum of both)
+        """
+        # Step 1: Inward 2,490 bags to Mother India Mill
+        Inward.objects.create(
+            invoice_no='INV-TEST-SPLIT-STOCK',
+            date=timezone.now().date(),
+            party=self.party_lakshmi,
+            variety=self.variety_bullet,
+            bags=2490,
+            rate=Decimal('1500.00'),
+            created_by=self.owner_user
+        )
+
+        # Step 2: Transfer 490 bags to Raichur Branch (leaving 2,000 at our mill)
+        Outward.objects.create(
+            invoice_no='OUT-TRF-RAICHUR-490',
+            date=timezone.now().date(),
+            party=self.party_lakshmi,
+            variety=self.variety_bullet,
+            bags=490,
+            rate=Decimal('1500.00'),
+            is_transfer=True,
+            from_place=None,  # from Mother India Mill
+            to_place=self.place_raichur,
+            created_by=self.owner_user
+        )
+
+        # Step 3: Check Variety API response
+        self.client.force_authenticate(user=self.owner_user)
+        res = self.client.get('/api/varieties/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        bullet_data = next(v for v in res.data if v['id'] == self.variety_bullet.id)
+        self.assertEqual(bullet_data['our_mill_stock_bags'], 2000)
+        self.assertEqual(bullet_data['other_places_stock_bags'], 490)
+        self.assertEqual(bullet_data['current_stock_bags'], 2490)
+        self.assertEqual(len(bullet_data['other_places_breakdown']), 1)
+        self.assertEqual(bullet_data['other_places_breakdown'][0]['place_name'], 'Raichur')
+        self.assertEqual(bullet_data['other_places_breakdown'][0]['bags'], 490)
+
+        # Step 4: Dispatch/sell 90 bags from Raichur location
+        Outward.objects.create(
+            invoice_no='OUT-SALE-RAICHUR-90',
+            date=timezone.now().date(),
+            party=self.party_lakshmi,
+            variety=self.variety_bullet,
+            bags=90,
+            rate=Decimal('1600.00'),
+            is_transfer=False,
+            from_place=self.place_raichur,
+            to_place=None,
+            created_by=self.owner_user
+        )
+
+        res2 = self.client.get('/api/varieties/')
+        bullet_data2 = next(v for v in res2.data if v['id'] == self.variety_bullet.id)
+        self.assertEqual(bullet_data2['our_mill_stock_bags'], 2000)
+        self.assertEqual(bullet_data2['other_places_stock_bags'], 400)
+        self.assertEqual(bullet_data2['current_stock_bags'], 2400)
+        self.assertEqual(bullet_data2['other_places_breakdown'][0]['bags'], 400)
+
 
 
 
